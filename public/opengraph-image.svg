@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <defs>
+    <linearGradient id="night" x1="54" y1="44" x2="1125" y2="650" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1D1717"/>
+      <stop offset=".58" stop-color="#291815"/>
+      <stop offset="1" stop-color="#4A2118"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="matrix(310 215 -214 309 961 319)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF6F45" stop-opacity=".38"/>
+      <stop offset="1" stop-color="#FF4F00" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="glass" x1="898" y1="289" x2="1093" y2="585" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9E4928"/>
+      <stop offset=".42" stop-color="#55291F"/>
+      <stop offset="1" stop-color="#241A18"/>
+    </linearGradient>
+    <linearGradient id="label" x1="908" y1="411" x2="1087" y2="502" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF8B52"/>
+      <stop offset=".55" stop-color="#FF4F00"/>
+      <stop offset="1" stop-color="#D83808"/>
+    </linearGradient>
+    <linearGradient id="flare" x1="868" y1="149" x2="1050" y2="350" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE0A5"/>
+      <stop offset=".5" stop-color="#FF8B55"/>
+      <stop offset="1" stop-color="#FF4F00" stop-opacity=".1"/>
+    </linearGradient>
+    <filter id="shadow" x="840" y="224" width="297" height="404" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="11"/>
+    </filter>
+    <pattern id="dust" width="34" height="34" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1" fill="#FFF8F2" fill-opacity=".12"/>
+    </pattern>
+    <clipPath id="frame"><rect width="1200" height="630" rx="32"/></clipPath>
+  </defs>
+  <g clip-path="url(#frame)">
+    <rect width="1200" height="630" fill="url(#night)"/>
+    <rect width="1200" height="630" fill="url(#dust)" opacity=".6"/>
+    <ellipse cx="961" cy="319" rx="322" ry="285" fill="url(#glow)"/>
+    <path d="M0 541C220 511 398 543 610 630H0V541Z" fill="#100D0D" fill-opacity=".34"/>
+    <rect x="18" y="18" width="1164" height="594" rx="25" stroke="#FFF8F2" stroke-opacity=".12" stroke-width="2"/>
+
+    <image x="75" y="52" width="58" height="58" preserveAspectRatio="xMidYMid meet" href="/logo.png" xlink:href="/logo.png"/>
+    <text x="151" y="81" fill="#FFF8F2" font-family="Arial, sans-serif" font-size="29" font-weight="800" letter-spacing="-.7">GAMZ</text>
+    <text x="152" y="103" fill="#E8CFC3" font-family="Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="2.2">FIREWORKS &amp; LIQUORS</text>
+
+    <rect x="75" y="153" width="8" height="8" rx="4" fill="#FF6F61"/>
+    <text x="94" y="161" fill="#FFB3BA" font-family="Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="2.3">YOUR NEXT CELEBRATION STARTS HERE</text>
+
+    <text x="73" y="250" fill="#FFF8F2" font-family="Arial, sans-serif" font-size="70" font-weight="800" letter-spacing="-2.7">Big nights.</text>
+    <text x="73" y="331" fill="#FFF8F2" font-family="Arial, sans-serif" font-size="70" font-weight="800" letter-spacing="-2.7">Bright</text>
+    <text x="294" y="331" fill="#FF754C" font-family="Arial, sans-serif" font-size="70" font-weight="800" letter-spacing="-2.7">moments.</text>
+
+    <text x="77" y="393" fill="#E8D3C9" font-family="Arial, sans-serif" font-size="22" font-weight="400">Discover fireworks, liquor favorites,</text>
+    <text x="77" y="425" fill="#E8D3C9" font-family="Arial, sans-serif" font-size="22" font-weight="400">and pickup made simple.</text>
+
+    <rect x="75" y="463" width="252" height="54" rx="16" fill="#FF4F00"/>
+    <rect x="76" y="464" width="250" height="52" rx="15" stroke="#FFB08C" stroke-opacity=".7" stroke-width="2"/>
+    <text x="99" y="497" fill="#FFF" font-family="Arial, sans-serif" font-size="15" font-weight="700" letter-spacing="1.1">SHOP THE DISPLAY</text>
+    <path d="M286 490H308M308 490L300 482M308 490L300 498" stroke="#FFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="77" y="579" fill="#D5B8AC" font-family="Arial, sans-serif" font-size="14" font-weight="600" letter-spacing="1.3">GAMZ-STORE.GITHUB.IO</text>
+    <circle cx="301" cy="574" r="3" fill="#FF754C"/>
+    <text x="316" y="579" fill="#D5B8AC" font-family="Arial, sans-serif" font-size="14" font-weight="600" letter-spacing="1.1">CELEBRATE RESPONSIBLY</text>
+
+    <!-- Fireworks in the night sky -->
+    <circle cx="977" cy="271" r="229" stroke="#FF956C" stroke-opacity=".12" stroke-width="1.5"/>
+    <circle cx="977" cy="271" r="183" stroke="#FF956C" stroke-opacity=".1" stroke-width="1.5" stroke-dasharray="3 10"/>
+    <g transform="translate(982 213)" stroke="url(#flare)" stroke-linecap="round">
+      <path d="M0-119V-78M42-111L28-73M81-87L54-59M111-42L73-28M119 0H79M111 42L73 28M87 81L59 54M42 111L28 73M0 119V79M-42 111L-28 73M-81 87L-54 59M-111 42L-73 28M-119 0H-79M-111-42L-73-28M-87-81L-59-54M-42-111L-28-73" stroke-width="3"/>
+      <path d="M0-152V-137M54-142L49-128M107-107L96-96M142-54L128-49M152 0H137M142 54L128 49M107 107L96 96M54 142L49 128M0 152V137M-54 142L-49 128M-107 107L-96 96M-142 54L-128 49M-152 0H-137M-142-54L-128-49M-107-107L-96-96M-54-142L-49-128" stroke-width="1.5" stroke-opacity=".68"/>
+      <circle r="7" fill="#FFE4AE" stroke="none"/>
+    </g>
+    <g transform="translate(1116 346)" stroke="#FFB3BA" stroke-linecap="round" stroke-opacity=".9">
+      <path d="M0-60V-39M42-42L27-27M60 0H39M42 42L27 27M0 60V39M-42 42L-27 27M-60 0H-39M-42-42L-27-27" stroke-width="2"/>
+      <circle r="4" fill="#FFF0D6" stroke="none"/>
+    </g>
+    <g fill="#FFD7A1">
+      <circle cx="846" cy="172" r="3"/><circle cx="1091" cy="113" r="2.5"/><circle cx="1137" cy="242" r="2"/>
+      <circle cx="855" cy="352" r="2"/><circle cx="1085" cy="518" r="3"/><circle cx="1144" cy="447" r="2"/>
+      <circle cx="821" cy="262" r="2"/><circle cx="1045" cy="127" r="1.8"/><circle cx="848" cy="445" r="1.8"/>
+    </g>
+
+    <!-- A warm glass bottle silhouette anchors the celebration artwork. -->
+    <path d="M894 297C888 267 929 244 936 229H1030C1038 245 1078 267 1072 298L1103 354V547C1103 571 1084 589 1060 589H906C882 589 863 571 863 547V354L894 297Z" fill="#FF4F00" fill-opacity=".23" filter="url(#shadow)"/>
+    <g transform="rotate(5 983 405)">
+      <path d="M952 231H1015V272C1015 289 1033 298 1053 316C1067 328 1075 345 1075 365V548C1075 568 1059 584 1039 584H928C908 584 892 568 892 548V365C892 345 900 328 914 316C934 298 952 289 952 272V231Z" fill="url(#glass)" stroke="#F4B279" stroke-opacity=".8" stroke-width="3"/>
+      <path d="M952 231H1015V271H952V231Z" fill="#C77B46" stroke="#FFE0AA" stroke-opacity=".8" stroke-width="2"/>
+      <rect x="945" y="213" width="77" height="26" rx="6" fill="#251A18" stroke="#F4B279" stroke-width="2"/>
+      <path d="M911 350C915 332 930 321 946 309M1052 322C1062 333 1067 346 1068 362" stroke="#FFD5A0" stroke-opacity=".45" stroke-width="5" stroke-linecap="round"/>
+      <path d="M901 379C901 364 913 352 928 352H1039C1054 352 1066 364 1066 379V502C1066 517 1054 529 1039 529H928C913 529 901 517 901 502V379Z" fill="url(#label)" stroke="#FFD29A" stroke-width="2"/>
+      <path d="M916 371H1051M916 510H1051" stroke="#FFE2B3" stroke-opacity=".75" stroke-width="1.5"/>
+      <text x="983" y="426" text-anchor="middle" fill="#FFF8F2" font-family="Arial, sans-serif" font-size="31" font-weight="800" letter-spacing="1">GAMZ</text>
+      <text x="983" y="449" text-anchor="middle" fill="#FFF1DE" font-family="Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="2">FIREWORKS</text>
+      <text x="983" y="473" text-anchor="middle" fill="#FFF1DE" font-family="Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="2">&amp; LIQUORS</text>
+      <path d="M913 553C947 563 1019 563 1055 553" stroke="#F9BB7B" stroke-opacity=".6" stroke-width="2"/>
+    </g>
+
+    <path d="M845 575C892 553 1098 556 1150 579" stroke="#FF8A5A" stroke-opacity=".25" stroke-width="2"/>
+  </g>
+</svg>

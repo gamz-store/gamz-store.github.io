@@ -4,7 +4,7 @@ import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndP
 import { addDoc, collection, deleteDoc, deleteField, doc, increment, limit, onSnapshot, orderBy, query, runTransaction, setDoc, updateDoc, where, writeBatch, type Timestamp } from "firebase/firestore";
 import { generateReactHelpers } from "@uploadthing/react";
 import type { AnyFileRoute } from "uploadthing/types";
-import { ArrowRight, Banknote, CalendarDays, Check, Clock3, Download, Flame, LogIn, LogOut, Menu, MessageCircle, PackageCheck, Plus, QrCode, Search, ShieldAlert, ShoppingBag, Trash2, Upload, Users, X } from "lucide-react";
+import { ArrowRight, Banknote, CalendarDays, Check, ClipboardList, Clock3, Download, Facebook, House, LogIn, LogOut, MapPin, MessageCircle, PackageCheck, Plus, QrCode, Search, ShieldAlert, ShoppingBag, Store, Trash2, Upload, Users, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
@@ -16,18 +16,45 @@ const uploadThingUrl = process.env.NEXT_PUBLIC_UPLOADTHING_URL || "";
 type GamzUploadRouter = { productImage: AnyFileRoute };
 const { uploadFiles } = generateReactHelpers<GamzUploadRouter>({ url: uploadThingUrl || "/api/uploadthing" });
 
-type Product = { id: string; name: string; description: string; stock: number; price: number; saleType: "regular" | "promo"; imageUrl?: string; promoStartDate?: string; promoEndDate?: string; active: boolean };
+type Product = { id: string; name: string; product?: string; size?: string; description: string; stock: number; price: number; saleType: "regular" | "promo"; imageUrl?: string; promoStartDate?: string; promoEndDate?: string; active: boolean };
 type Profile = { firstName: string; lastName: string; suffix: string; region?: string; province: string; municipality: string; barangay: string; street?: string; facebookName?: string; phone: string; email: string; role: "user" | "admin" };
-type ShopOrder = { id: string; userId: string; customer: string; phone: string; productId: string; productName: string; productImageUrl?: string; quantity: number; total: number; downpayment?: number; pickupDate: string; pickupTime: string; status: "pending" | "ready" | "completed" | "cancelled" | "delivered"; paymentStatus?: "unpaid" | "paid"; deliveredAt?: number; createdAt: number };
+type ShopOrder = { id: string; userId: string; customer: string; phone: string; productId: string; productName: string; orderName?: string; productImageUrl?: string; quantity: number; total: number; downpayment?: number; pickupDate: string; pickupTime: string; status: "pending" | "ready" | "completed" | "cancelled" | "delivered"; paymentStatus?: "unpaid" | "paid"; deliveredAt?: number; createdAt: number };
 type MessageCursor = { seconds: number; nanoseconds: number; id: string };
 type Tab = "shop" | "display" | "orders" | "admin" | "checklist" | "users";
 type AuthMode = "login" | "signup";
 
 const suffixes = ["", "Jr.", "Sr.", "II", "III", "IV"];
 const ORDER_CANCEL_WINDOW_MS = 60 * 60 * 1000;
-const productCategories = ["Aerial", "Bombshells", "Firecrackers", "Fountains", "Kwitis", "Liquors", "Others", "Sparklers"];
+const productCategories = ["Aerial", "Bombshells", "Firecrackers", "Fountains / Sparklers", "Kwitis", "Liquors", "Others"];
+const productsByCategory: Record<string, string[]> = {
+  "Fountains / Sparklers": ["Batibot", "Yanco Jumbo Silver", "Sputnik Silver", "Tiger Crackling Fountain", "Lucky Pagoda Crackling Fountain", "Lucky Mayon Crackling Fountain", "Mt. Everest Fountain", "3-Minute Fountain", "100-in Sparkler Stick", "Harry Potter 10s", "Harry Potter 30s", "Harry Potter 40s", "Harry Potter 50s", "Luces", "Victory Lights"],
+  Aerial: ["Party USA 16s", "Guiding Light 16s", "Gold of Aztec 16s", "Dragon Aerial 16s", "LF Aerial 16s", "Fat Cat 16s", "RPG 24s", "Thumbs up 30s", "Cloud Dragon 24s", "Magician 30s"],
+  Kwitis: ["Maribel Kwitis Stick 10s", "Maribel Kwitis Stick 50s", "Maribel Kwitis Stick 100s"],
+  Firecrackers: ["Higad", "Sawa 500 Rounds", "Sawa 1000 Rounds", "Celebration Firecrackers 100k", "Celebrtion Firecrackers 50k"],
+  Bombshells: ["JLJ Aquino 1s", "JLJ Aquino 3s", "JLJ Aquino 7s", "JLJ Aquino 9s"],
+  Liquors: ["Black Label", "Gold Label", "Red Label", "Jack Daniel", "Jose Cuervo", "Blur Label", "Singleton", "Macallan"],
+};
+const liquorSizesByProduct: Record<string, string[]> = {
+  "Black Label": ["700 Milliliters", "1 Liter"],
+  "Gold Label": ["700 Milliliters", "1 Liter"],
+  "Red Label": ["1 Liter", "3 Liters"],
+  "Jack Daniel": ["700 Milliliters", "1 Liter"],
+  "Jose Cuervo": ["700 Milliliters", "1 Liter"],
+  "Blur Label": ["700 Milliliters", "1 Liter"],
+  Singleton: ["12 yrs", "12 yrs with Glass"],
+  Macallan: ["12 yrs Sherry Oak", "15 yrs Sherry Oak", "12 yrs Double Cask", "15 yrs Double Cask"],
+};
+const normalizedOrderName = (name: string) => name === "Fountains" || name === "Sparklers" ? "Fountains / Sparklers" : name;
+const productLabel = (product: Pick<Product, "name" | "product" | "size">) => [product.product || product.name, product.size].filter(Boolean).join(" · ");
 const peso = (value: number) => `₱${value.toLocaleString("en-PH", { maximumFractionDigits: 2 })}`;
 const today = () => { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; };
+const formatPickupTime = (time: string) => {
+  const match = /^(\d{2}):([0-5]\d)$/.exec(time);
+  if (!match) return time;
+  const hour = Number(match[1]);
+  if (hour > 23) return time;
+  return `${String(hour % 12 || 12).padStart(2, "0")}:${match[2]} ${hour < 12 ? "AM" : "PM"}`;
+};
 const orderBalance = (order: ShopOrder) => order.paymentStatus === "paid" ? 0 : Math.max(0, order.total - (order.downpayment ?? 0));
 const messageReadKey = (userId: string, orderId: string) => `gamz:message-read:${userId}:${orderId}`;
 function readMessageCursor(userId: string, orderId: string): MessageCursor | null {
@@ -57,11 +84,11 @@ export default function Home() {
   const [catalogOrderName, setCatalogOrderName] = useState("");
   const [authMode, setAuthMode] = useState<AuthMode | null>(null);
   const [logoutConfirmation, setLogoutConfirmation] = useState(false);
+  const [locationOpen, setLocationOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [authError, setAuthError] = useState("");
   const [notice, setNotice] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [confirmedOrder, setConfirmedOrder] = useState<ShopOrder | null>(null);
   const [pickupConfirmationOpen, setPickupConfirmationOpen] = useState(false);
   const [placingOrder, setPlacingOrder] = useState(false);
   const [conversationOrder, setConversationOrder] = useState<ShopOrder | null>(null);
@@ -70,9 +97,8 @@ export default function Home() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [savingProduct, setSavingProduct] = useState(false);
   const [savingProductAction, setSavingProductAction] = useState(false);
-  const [mobileNav, setMobileNav] = useState(false);
   const [authDraft, setAuthDraft] = useState({ firstName: "", lastName: "", suffix: "", province: "", municipality: "", barangay: "", facebookName: "", phone: "", email: "", password: "" });
-  const [productDraft, setProductDraft] = useState({ name: "", description: "", stock: "", price: "", saleType: "regular" as "regular" | "promo", promoStartDate: "", promoEndDate: "", imageUrl: "" });
+  const [productDraft, setProductDraft] = useState({ name: "", product: "", size: "", description: "", stock: "", price: "", saleType: "regular" as "regular" | "promo", promoStartDate: "", promoEndDate: "", imageUrl: "" });
   const [orderDraft, setOrderDraft] = useState({ quantity: "1", pickupDate: "", pickupTime: "" });
   const [unreadMessageOrderIds, setUnreadMessageOrderIds] = useState<Set<string>>(() => new Set());
   const latestMessageCursors = useRef(new Map<string, MessageCursor>());
@@ -82,7 +108,17 @@ export default function Home() {
   const pickupTotal = selectedProduct ? selectedProduct.price * (Number(orderDraft.quantity) || 0) : 0;
   const minimumDownpayment = Math.ceil(pickupTotal * 30 - 1e-8) / 100;
   const searchTerm = catalogSearch.trim().toLowerCase();
-  const filteredProducts = products.filter((product) => product.name.toLowerCase().includes(searchTerm) && (!catalogOrderName || product.name === catalogOrderName));
+  const filteredProducts = products.filter((product) => [product.name, product.product ?? "", product.size ?? ""].some((value) => value.toLowerCase().includes(searchTerm)) && (!catalogOrderName || normalizedOrderName(product.name) === catalogOrderName));
+  const groupedCatalog = Object.entries(filteredProducts.reduce<Record<string, Product[]>>((groups, product) => {
+    const orderName = normalizedOrderName(product.name);
+    (groups[orderName] ??= []).push(product);
+    return groups;
+  }, {}))
+    .sort(([left], [right]) => left.localeCompare(right, "en", { sensitivity: "base" }))
+    .map(([orderName, items]) => ({
+      orderName,
+      items: items.sort((left, right) => productLabel(left).localeCompare(productLabel(right), "en", { numeric: true, sensitivity: "base" })),
+    }));
   const markOrderMessagesRead = useCallback((orderId: string, cursor?: MessageCursor | null) => {
     const latestCursor = cursor ?? latestMessageCursors.current.get(orderId) ?? null;
     if (userId && latestCursor) saveMessageCursor(userId, orderId, latestCursor);
@@ -113,13 +149,11 @@ export default function Home() {
         setProfile(null);
         setProfileReady(true);
         setTab("shop");
-        setMobileNav(false);
         if (!nextUser) {
           setLogoutConfirmation(false);
           setSigningOut(false);
           setAuthMode(null);
           setSelectedProduct(null);
-          setConfirmedOrder(null);
           setEditingProduct(null);
         }
         return;
@@ -131,7 +165,6 @@ export default function Home() {
         setProfileReady(true);
         if (initialLandingUserId.current !== nextUser.uid) {
           setTab(nextProfile?.role === "admin" ? "admin" : "shop");
-          setMobileNav(false);
           initialLandingUserId.current = nextUser.uid;
         }
       }, () => { setProfileReady(true); setNotice("Could not load your account profile."); });
@@ -143,10 +176,8 @@ export default function Home() {
     const adminTabs: Tab[] = ["display", "admin", "checklist", "users"];
     if (!user && tab !== "shop") {
       setTab("shop");
-      setMobileNav(false);
     } else if (user && profileReady && profile?.role !== "admin" && adminTabs.includes(tab)) {
       setTab("shop");
-      setMobileNav(false);
     }
   }, [user, profileReady, profile?.role, tab]);
 
@@ -256,7 +287,6 @@ export default function Home() {
         await setDoc(doc(db, "users", created.user.uid), data);
       }
       setAuthMode(null);
-      if (authMode === "signup") setNotice("Account created. Welcome to Gamz.");
     } catch (error) {
       setAuthError(error instanceof Error ? error.message.replace("Firebase: ", "") : "Sign-in failed. Please try again.");
     }
@@ -279,7 +309,7 @@ export default function Home() {
       const orderRef = doc(collection(db, "orders"));
       const productRef = doc(db, "products", selectedProduct.id);
       const amount = selectedProduct.price * quantity;
-      const order: ShopOrder = { id: orderRef.id, userId: user.uid, customer: `${profile.firstName} ${profile.lastName}`.trim(), phone: profile.phone, productId: selectedProduct.id, productName: selectedProduct.name, ...(selectedProduct.imageUrl ? { productImageUrl: selectedProduct.imageUrl } : {}), quantity, total: amount, downpayment: 0, pickupDate: orderDraft.pickupDate, pickupTime: orderDraft.pickupTime, status: "pending", paymentStatus: "unpaid", createdAt: Date.now() };
+      const order: ShopOrder = { id: orderRef.id, userId: user.uid, customer: `${profile.firstName} ${profile.lastName}`.trim(), phone: profile.phone, productId: selectedProduct.id, productName: productLabel(selectedProduct), orderName: selectedProduct.name, ...(selectedProduct.imageUrl ? { productImageUrl: selectedProduct.imageUrl } : {}), quantity, total: amount, downpayment: 0, pickupDate: orderDraft.pickupDate, pickupTime: orderDraft.pickupTime, status: "pending", paymentStatus: "unpaid", createdAt: Date.now() };
       await runTransaction(db, async (transaction) => {
         const latest = await transaction.get(productRef);
         if (!latest.exists() || latest.data().active !== true) throw new Error("This item is no longer available.");
@@ -289,7 +319,8 @@ export default function Home() {
       });
       setPickupConfirmationOpen(false);
       setSelectedProduct(null);
-      setConfirmedOrder(order);
+      setNotice("");
+      setTab(profile.role === "admin" ? "admin" : "orders");
     } catch (error) {
       setPickupConfirmationOpen(false);
       setNotice(error instanceof Error ? error.message : "Order could not be placed.");
@@ -301,7 +332,7 @@ export default function Home() {
   function startProductEdit(product?: Product) {
     setEditingProduct(product?.id ?? "new");
     setImageFile(null);
-    setProductDraft(product ? { name: product.name, description: product.description, stock: String(product.stock), price: String(product.price), saleType: product.saleType, promoStartDate: product.promoStartDate ?? "", promoEndDate: product.promoEndDate ?? "", imageUrl: product.imageUrl ?? "" } : { name: "", description: "", stock: "", price: "", saleType: "regular", promoStartDate: "", promoEndDate: "", imageUrl: "" });
+    setProductDraft(product ? { name: normalizedOrderName(product.name), product: product.product ?? "", size: product.size ?? "", description: product.description, stock: String(product.stock), price: String(product.price), saleType: product.saleType, promoStartDate: product.promoStartDate ?? "", promoEndDate: product.promoEndDate ?? "", imageUrl: product.imageUrl ?? "" } : { name: "", product: "", size: "", description: "", stock: "", price: "", saleType: "regular", promoStartDate: "", promoEndDate: "", imageUrl: "" });
   }
 
   async function saveProduct(event: FormEvent<HTMLFormElement>) {
@@ -318,14 +349,16 @@ export default function Home() {
         imageUrl = file?.serverData?.imageUrl ?? file?.ufsUrl ?? file?.url ?? imageUrl;
       }
       if (!imageUrl) throw new Error("Upload a photo for this display.");
-      const data = { name: productDraft.name, description: productDraft.description.trim(), stock: Number(productDraft.stock), price: Number(productDraft.price), saleType: productDraft.saleType, imageUrl, ...(productDraft.saleType === "promo" ? { promoStartDate: productDraft.promoStartDate, promoEndDate: productDraft.promoEndDate } : {}), active: true };
-      if (!productCategories.includes(data.name) || !data.description || !Number.isInteger(data.stock) || data.stock < 0 || !Number.isFinite(data.price) || data.price < 0) throw new Error("Enter a description, choose an order name, and provide non-negative stock and price.");
+      const data = { name: productDraft.name, product: productDraft.product.trim(), ...(productDraft.name === "Liquors" ? { size: productDraft.size } : {}), description: productDraft.description.trim(), stock: Number(productDraft.stock), price: Number(productDraft.price), saleType: productDraft.saleType, imageUrl, ...(productDraft.saleType === "promo" ? { promoStartDate: productDraft.promoStartDate, promoEndDate: productDraft.promoEndDate } : {}), active: true };
+      const validProductChoice = data.name === "Others" ? data.product.length > 0 : productsByCategory[data.name]?.includes(data.product) === true;
+      const validSizeChoice = data.name !== "Liquors" || (liquorSizesByProduct[data.product] ?? []).includes(data.size ?? "");
+      if (!productCategories.includes(data.name) || !validProductChoice || !validSizeChoice || !data.description || !Number.isInteger(data.stock) || data.stock < 0 || !Number.isFinite(data.price) || data.price < 0) throw new Error("Choose an order name, product, required size, and description, then enter a valid stock and price.");
       if (data.saleType === "promo" && (!data.promoStartDate || !data.promoEndDate || data.promoEndDate < data.promoStartDate)) throw new Error("Choose a valid start and end date for this promo.");
       if (editingProduct === "new") await addDoc(collection(db, "products"), data);
-      else await updateDoc(doc(db, "products", editingProduct), { ...data, ...(data.saleType === "regular" ? { promoStartDate: deleteField(), promoEndDate: deleteField() } : {}) });
+      else await updateDoc(doc(db, "products", editingProduct), { ...data, ...(data.name !== "Liquors" ? { size: deleteField() } : {}), ...(data.saleType === "regular" ? { promoStartDate: deleteField(), promoEndDate: deleteField() } : {}) });
       setEditingProduct(null);
       setImageFile(null);
-      setNotice("Display saved.");
+      setNotice("");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Product could not be saved."); }
     finally { setSavingProduct(false); }
   }
@@ -336,11 +369,11 @@ export default function Home() {
     catch (error) { setNotice(error instanceof Error ? error.message : "Order update failed."); return false; }
   }
 
-  async function deleteCustomerOrder(order: ShopOrder) {
-    if (!db || !user) { setNotice("Sign in to delete an order."); return false; }
+  async function cancelCustomerOrder(order: ShopOrder) {
+    if (!db || !user) { setNotice("Sign in to cancel an order."); return false; }
     const now = Date.now();
     if (order.userId !== user.uid || order.status !== "pending" || !Number.isSafeInteger(order.createdAt) || order.createdAt > now || now - order.createdAt >= ORDER_CANCEL_WINDOW_MS || !Number.isSafeInteger(order.quantity) || order.quantity < 1) {
-      setNotice("This order is no longer eligible for deletion.");
+      setNotice("This order can no longer be cancelled.");
       return false;
     }
     try {
@@ -348,10 +381,10 @@ export default function Home() {
       batch.delete(doc(db, "orders", order.id));
       batch.update(doc(db, "products", order.productId), { stock: increment(order.quantity), lastOrderId: order.id });
       await batch.commit();
-      setNotice("Order deleted. The reserved stock is back in the display.");
+      setNotice("");
       return true;
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Order could not be deleted.");
+      setNotice(error instanceof Error ? error.message : "Order could not be cancelled. Please try again.");
       return false;
     }
   }
@@ -377,11 +410,10 @@ export default function Home() {
     try {
       if (action === "delete") {
         await deleteDoc(doc(db, "products", product.id));
-        setNotice("Display deleted.");
       } else {
         await updateDoc(doc(db, "products", product.id), { active: action === "publish" });
-        setNotice(action === "publish" ? "Display published." : "Display hidden.");
       }
+      setNotice("");
       setProductConfirmation(null);
     } catch (error) { setNotice(error instanceof Error ? error.message : "Display update failed."); }
     finally { setSavingProductAction(false); }
@@ -389,36 +421,38 @@ export default function Home() {
   const isAdmin = profile?.role === "admin";
   const navItems: Array<{ id: Tab; label: string }> = isAdmin
     ? [{ id: "shop", label: "Home" }, { id: "admin", label: "Order List" }, { id: "users", label: "Users" }]
-    : user ? [{ id: "shop", label: "Display" }, { id: "orders", label: "My orders" }] : [{ id: "shop", label: "Menu" }];
+    : user ? [{ id: "shop", label: "Display" }, { id: "orders", label: "My Orders" }] : [{ id: "shop", label: "Display" }];
   const visibleOrders = isAdmin ? orders : orders.filter((order) => order.userId === user?.uid);
   const selectedProvince = caragaAddressData.provinces.find((province) => province.name === authDraft.province);
   const municipalities = selectedProvince?.municipalities ?? [];
   const selectedMunicipality = municipalities.find((municipality) => municipality.name === authDraft.municipality);
   const barangays = selectedMunicipality?.barangays ?? [];
 
-  return <main className="site-shell">
-    <header className="topbar"><Link className="brand" href="/" onClick={() => { setTab("shop"); setMobileNav(false); }}><span className="brand-mark"><Flame size={24} /></span><span><strong>GAMZ</strong><small>FIREWORKS & LIQUORS</small></span></Link>
-      <nav className={mobileNav ? "nav-links open" : "nav-links"}>{navItems.map((item) => <button key={item.id} className={tab === item.id ? "nav-link active" : "nav-link"} onClick={() => { setTab(item.id); setMobileNav(false); }}>{item.label}</button>)}</nav>
-      <div className="account-actions">{user ? <button className="icon-button" aria-label="Sign out" title="Sign out" onClick={() => setLogoutConfirmation(true)}><LogOut size={18} /></button> : <button className="button quiet" onClick={() => { setAuthMode("login"); setAuthError(""); }}><LogIn size={17} /> Sign in</button>}<button className="mobile-toggle" aria-label="Toggle navigation" onClick={() => setMobileNav(!mobileNav)}>{mobileNav ? <X size={21} /> : <Menu size={21} />}</button></div>
+  return <main className={`site-shell${tab === "shop" ? " has-home-footer" : ""}`}>
+    <header className="topbar"><Link className="brand" href="/" onClick={() => setTab("shop")}><Image className="brand-logo" src="/logo.png" alt="" aria-hidden="true" width={48} height={48} priority /><span><strong>GAMZ</strong><small>FIREWORKS & LIQUORS</small></span></Link>
+      <nav className="nav-links" aria-label="Main navigation">{navItems.map((item) => <button key={item.id} className={tab === item.id ? "nav-link active" : "nav-link"} aria-label={item.label} title={item.label} aria-current={tab === item.id ? "page" : undefined} onClick={() => setTab(item.id)}><span className="mobile-nav-icon" aria-hidden="true">{item.id === "shop" ? isAdmin ? <House size={19} /> : <Store size={19} /> : item.id === "orders" || item.id === "admin" ? <ClipboardList size={19} /> : <Users size={19} />}</span><span className="nav-link-label">{item.label}</span></button>)}</nav>
+      <div className="account-actions">{user ? <button className="icon-button" aria-label="Sign out" title="Sign out" onClick={() => setLogoutConfirmation(true)}><LogOut size={18} /></button> : <button className="button quiet" onClick={() => { setAuthMode("login"); setAuthError(""); }}><LogIn size={17} /> Sign in</button>}</div>
     </header>
     {notice && <div className="notice" role="status">{notice}<button aria-label="Dismiss message" onClick={() => setNotice("")}><X size={16} /></button></div>}
 
     {tab === "shop" && <>
-      <section className="catalog" id="catalog"><div className="section-title"><div><span className="eyebrow">THE GAMZ SELECTION</span><h2>Shop the Display</h2></div><span className="catalog-count">{filteredProducts.length} {filteredProducts.length === 1 ? "item" : "items"}</span></div><div className="catalog-tools"><label className="catalog-search"><Search size={18} aria-hidden="true" /><input type="search" value={catalogSearch} onChange={(event) => setCatalogSearch(event.target.value)} placeholder="Search order names" aria-label="Search order names" /></label><label className="catalog-filter"><select aria-label="Filter by order name" value={catalogOrderName} onChange={(event) => setCatalogOrderName(event.target.value)}><option value="">All order names</option>{productCategories.map((name) => <option key={name} value={name}>{name}</option>)}</select></label></div>
+      <section className="catalog" id="catalog"><div className="section-title"><div><span className="eyebrow">THE GAMZ SELECTION</span><h2>Shop the Display</h2></div><span className="catalog-count">{filteredProducts.length} {filteredProducts.length === 1 ? "item" : "items"}</span></div><div className="catalog-tools"><label className="catalog-search"><Search size={18} aria-hidden="true" /><input type="search" value={catalogSearch} onChange={(event) => setCatalogSearch(event.target.value)} placeholder="Search orders" aria-label="Search orders" /></label><label className="catalog-filter"><select aria-label="Filter by order name" value={catalogOrderName} onChange={(event) => setCatalogOrderName(event.target.value)}><option value="">All order names</option>{productCategories.map((name) => <option key={name} value={name}>{name}</option>)}</select></label></div>
         {!firebaseEnabled && <div className="setup-note"><ShieldAlert size={20} /><span><strong>Store setup in progress</strong><small>Add your Firebase web configuration to load products and enable orders.</small></span></div>}
-        <div className="product-grid">{filteredProducts.length ? filteredProducts.map((product) => <article className="product-card" key={product.id}><div className="product-image" style={product.imageUrl ? { backgroundImage: `url("${product.imageUrl.replaceAll('"', '%22')}")` } : undefined}><span className={product.saleType === "promo" ? "product-badge promo" : "product-badge"}>{product.saleType === "promo" ? "PROMO" : "REGULAR"}</span>{!(product.stock > 0) && <span className="sold-out">Out of Stock</span>}</div><div className="product-copy"><div className="product-name-line"><h3>{product.name}</h3><strong>{peso(product.price)}</strong></div><p>{product.description || "Ready for your next celebration."}</p>{product.saleType === "promo" && product.promoStartDate && product.promoEndDate && <small className="promo-dates">Promo: {product.promoStartDate} - {product.promoEndDate}</small>}<div className="product-bottom"><span>{product.stock > 0 ? `${product.stock} in stock` : "0 in stock"}</span><button className="button small primary" disabled={!(product.stock > 0)} onClick={() => { if (!user) { setAuthMode("login"); setNotice("Sign in or create an account to order."); return; } setSelectedProduct(product); setOrderDraft({ quantity: "1", pickupDate: "", pickupTime: "" }); }}>Order <ArrowRight size={15} /></button></div></div></article>) : products.length ? <div className="empty-menu"><span className="empty-icon"><Search size={24} /></span><h3>No displays match your search.</h3><p>Try a different order name or clear the search and filter.</p><button className="text-button" onClick={() => { setCatalogSearch(""); setCatalogOrderName(""); }}>Clear search and filter</button></div> : <div className="empty-menu"><span className="empty-icon"><ShoppingBag size={24} /></span><h3>The shelves are getting ready.</h3><p>New favorites will show up here once the menu is published.</p>{!user && <button className="text-button" onClick={() => setAuthMode("signup")}>Create an account <ArrowRight size={15} /></button>}</div>}</div>
+        <div className="catalog-groups">{groupedCatalog.length ? groupedCatalog.map(({ orderName, items }) => <section className="catalog-group" key={orderName}><h3 className="catalog-group-heading"><span>{orderName}</span><small>{items.length} {items.length === 1 ? "item" : "items"}</small></h3><div className="product-grid">{items.map((product) => <CatalogProductCard key={product.id} product={product} onOrder={() => { if (!user) { setAuthMode("login"); setNotice("Sign in or create an account to order."); return; } setSelectedProduct(product); setOrderDraft({ quantity: "1", pickupDate: "", pickupTime: "" }); }} />)}</div></section>) : products.length ? <div className="empty-menu"><span className="empty-icon"><Search size={24} /></span><h3>No displays match your search.</h3><p>Try a different search or clear the search and filter.</p><button className="text-button" onClick={() => { setCatalogSearch(""); setCatalogOrderName(""); }}>Clear search and filter</button></div> : <div className="empty-menu"><span className="empty-icon"><ShoppingBag size={24} /></span><h3>The shelves are getting ready.</h3><p>New favorites will show up here once the menu is published.</p>{!user && <button className="text-button" onClick={() => setAuthMode("signup")}>Create an account <ArrowRight size={15} /></button>}</div>}</div>
       </section></>}
 
-    {tab === "orders" && <section className="workspace"><div className="page-heading"><div><span className="eyebrow">YOUR ACCOUNT</span><h1>My orders</h1><p>Pickup details and order status, all in one place.</p></div><button className="button quiet" onClick={() => setTab("shop")}>Back to Display <ArrowRight size={16} /></button></div><OrderList orders={visibleOrders} products={products} unreadMessageOrderIds={unreadMessageOrderIds} onMessage={openOrderConversation} onDelete={deleteCustomerOrder} /></section>}
+    {tab === "orders" && <section className="workspace"><div className="page-heading"><div><span className="eyebrow">YOUR ACCOUNT</span><h1>My orders</h1><p>Pickup details and order status, all in one place.</p></div><button className="button quiet" onClick={() => setTab("shop")}>Back to Display <ArrowRight size={16} /></button></div><OrderList orders={visibleOrders} products={products} unreadMessageOrderIds={unreadMessageOrderIds} onMessage={openOrderConversation} onCancel={cancelCustomerOrder} /></section>}
 
     {isAdmin && tab === "admin" && <AdminOrderDashboard orders={orders} products={products} unreadMessageOrderIds={unreadMessageOrderIds} onUpdate={updateOrder} onMessage={openOrderConversation} onAddDisplay={() => startProductEdit()} onEditDisplay={startProductEdit} onToggleDisplay={confirmProductVisibility} onDeleteDisplay={confirmProductDelete} />}
 
-    {isAdmin && tab === "checklist" && <section className="workspace"><div className="page-heading"><div><span className="eyebrow">PICKUP PREP</span><h1>Order checklist</h1><p>Mark orders ready when they&apos;re set for handoff.</p></div><PackageCheck size={31} className="heading-icon" /></div><div className="checklist">{orders.filter((order) => order.status !== "completed" && order.status !== "cancelled").map((order) => <article className="check-row" key={order.id}><div className="check-icon"><ShoppingBag size={19} /></div><div className="check-details"><strong>{order.productName} <span>× {order.quantity}</span></strong><small>{order.customer} · {order.pickupDate} at {order.pickupTime}</small><small>{order.phone}</small></div><button className={order.status === "ready" ? "button ready" : "button quiet"} onClick={() => updateOrder(order, { status: order.status === "ready" ? "pending" : "ready" })}>{order.status === "ready" ? <><Check size={16} /> Ready</> : "Mark ready"}</button></article>)}{orders.filter((order) => order.status !== "completed" && order.status !== "cancelled").length === 0 && <p className="empty-inline">No active orders to prepare.</p>}</div></section>}
+    {isAdmin && tab === "checklist" && <section className="workspace"><div className="page-heading"><div><span className="eyebrow">PICKUP PREP</span><h1>Order checklist</h1><p>Mark orders ready when they&apos;re set for handoff.</p></div><PackageCheck size={31} className="heading-icon" /></div><div className="checklist">{orders.filter((order) => order.status !== "completed" && order.status !== "cancelled").map((order) => <article className="check-row" key={order.id}><div className="check-icon"><ShoppingBag size={19} /></div><div className="check-details"><strong>{order.productName} <span>× {order.quantity}</span></strong><small>{order.customer} · {order.pickupDate} at {formatPickupTime(order.pickupTime)}</small><small>{order.phone}</small></div><button className={order.status === "ready" ? "button ready" : "button quiet"} onClick={() => updateOrder(order, { status: order.status === "ready" ? "pending" : "ready" })}>{order.status === "ready" ? <><Check size={16} /> Ready</> : "Mark ready"}</button></article>)}{orders.filter((order) => order.status !== "completed" && order.status !== "cancelled").length === 0 && <p className="empty-inline">No active orders to prepare.</p>}</div></section>}
 
     {isAdmin && tab === "users" && <section className="workspace"><div className="page-heading"><div><span className="eyebrow">ACCOUNT DIRECTORY</span><h1>Users</h1><p>Review registered accounts and manage staff access.</p></div><div className="metric"><strong>{managedUsers.length}</strong><span>accounts</span></div></div><div className="user-list">{managedUsers.map((item) => <article className="user-row" key={item.id}><span className="user-avatar"><Users size={18} /></span><div><strong>{item.firstName} {item.lastName} {item.suffix}</strong><small>{item.email} · {item.phone}</small>{item.facebookName && <small>Facebook: {item.facebookName}</small>}<small>{[item.street, item.barangay, item.municipality, item.province, item.region].filter(Boolean).join(", ")}</small></div><select aria-label={`Role for ${item.email}`} value={item.role} disabled={item.id === user?.uid} onChange={(event) => changeRole(item.id, event.target.value as "admin" | "user")}><option value="user">Customer</option><option value="admin">Admin</option></select></article>)}</div></section>}
 
     {isAdmin && editingProduct && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !savingProduct) setEditingProduct(null); }}><section className="modal display-modal" role="dialog" aria-modal="true" aria-labelledby="display-form-title" aria-busy={savingProduct} onKeyDown={(event) => { if (event.key === "Escape" && !savingProduct) setEditingProduct(null); }}><button className="modal-close" aria-label="Close" disabled={savingProduct} onClick={() => setEditingProduct(null)}><X size={20} /></button><span className="eyebrow">DISPLAY MANAGEMENT</span><h2 id="display-form-title">{editingProduct === "new" ? "Add Display" : "Edit Display"}</h2><p>Add the display details below.</p><form id="product-form" className="form-grid display-form-grid" onSubmit={saveProduct}>
-      <label>Order Name<select required value={productDraft.name} onChange={(event) => setProductDraft({ ...productDraft, name: event.target.value })}><option value="">Select an order name</option>{productCategories.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+      <label>Order Name<select required value={productDraft.name} onChange={(event) => setProductDraft({ ...productDraft, name: event.target.value, product: "", size: "" })}><option value="">Select an order name</option>{productCategories.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+      <label>Product{productDraft.name === "Others" ? <input required maxLength={120} value={productDraft.product} onChange={(event) => setProductDraft({ ...productDraft, product: event.target.value })} /> : <select required disabled={!productDraft.name} value={productDraft.product} onChange={(event) => setProductDraft({ ...productDraft, product: event.target.value, size: "" })}><option value="">Select a product</option>{(productsByCategory[productDraft.name] ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</select>}</label>
+      {productDraft.name === "Liquors" && productDraft.product && <label>Size<select required value={productDraft.size} onChange={(event) => setProductDraft({ ...productDraft, size: event.target.value })}><option value="">Select a size</option>{(liquorSizesByProduct[productDraft.product] ?? []).map((size) => <option key={size} value={size}>{size}</option>)}</select></label>}
       <label>Description<textarea required rows={2} value={productDraft.description} onChange={(event) => setProductDraft({ ...productDraft, description: event.target.value })} /></label>
       <label className="stock-field">Stock<input required type="number" min="0" step="1" value={productDraft.stock} onChange={(event) => setProductDraft({ ...productDraft, stock: event.target.value })} /></label>
       <label className="price-field">Price (PHP)<input required type="number" min="0" step="0.01" value={productDraft.price} onChange={(event) => setProductDraft({ ...productDraft, price: event.target.value })} /></label>
@@ -428,7 +462,7 @@ export default function Home() {
       <button className="button primary full-field" disabled={savingProduct}>{savingProduct ? "Saving..." : "Save Display"} <Check size={17} /></button>
     </form></section></div>}
 
-    {isAdmin && productConfirmation && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !savingProductAction) setProductConfirmation(null); }}><section className="modal product-confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="product-confirmation-title" aria-describedby="product-confirmation-description" aria-busy={savingProductAction} onKeyDown={(event) => { if (event.key === "Escape" && !savingProductAction) setProductConfirmation(null); }}><button className="modal-close" aria-label="Close confirmation" disabled={savingProductAction} onClick={() => setProductConfirmation(null)}><X size={20} /></button><span className="eyebrow">DISPLAY MANAGEMENT</span><h2 id="product-confirmation-title">{productConfirmation.action === "delete" ? "Delete display?" : productConfirmation.action === "hide" ? "Hide display?" : "Publish display?"}</h2><p id="product-confirmation-description">{productConfirmation.action === "delete" ? <><strong>{productConfirmation.product.name}</strong> will be permanently deleted. This cannot be undone.</> : productConfirmation.action === "hide" ? <><strong>{productConfirmation.product.name}</strong> will be removed from the public display. You can publish it again later.</> : <><strong>{productConfirmation.product.name}</strong> will appear in the public display.</>}</p><div className="confirmation-actions"><button type="button" className="button quiet" autoFocus disabled={savingProductAction} onClick={() => setProductConfirmation(null)}>Cancel</button><button type="button" className={productConfirmation.action === "delete" ? "button destructive" : "button primary"} disabled={savingProductAction} onClick={applyProductConfirmation}>{savingProductAction ? "Saving..." : productConfirmation.action === "delete" ? "Delete display" : productConfirmation.action === "hide" ? "Hide display" : "Publish display"}{productConfirmation.action === "delete" ? <Trash2 size={16} /> : <Check size={16} />}</button></div></section></div>}
+    {isAdmin && productConfirmation && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !savingProductAction) setProductConfirmation(null); }}><section className="modal product-confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="product-confirmation-title" aria-describedby="product-confirmation-description" aria-busy={savingProductAction} onKeyDown={(event) => { if (event.key === "Escape" && !savingProductAction) setProductConfirmation(null); }}><button className="modal-close" aria-label="Close confirmation" disabled={savingProductAction} onClick={() => setProductConfirmation(null)}><X size={20} /></button><span className="eyebrow">DISPLAY MANAGEMENT</span><h2 id="product-confirmation-title">{productConfirmation.action === "delete" ? "Delete display?" : productConfirmation.action === "hide" ? "Hide display?" : "Publish display?"}</h2><p id="product-confirmation-description">{productConfirmation.action === "delete" ? <><strong>{productLabel(productConfirmation.product)}</strong> will be permanently deleted. This cannot be undone.</> : productConfirmation.action === "hide" ? <><strong>{productLabel(productConfirmation.product)}</strong> will be removed from the public display. You can publish it again later.</> : <><strong>{productLabel(productConfirmation.product)}</strong> will appear in the public display.</>}</p><div className="confirmation-actions"><button type="button" className="button quiet" autoFocus disabled={savingProductAction} onClick={() => setProductConfirmation(null)}>Cancel</button><button type="button" className={productConfirmation.action === "delete" ? "button destructive" : "button primary"} disabled={savingProductAction} onClick={applyProductConfirmation}>{savingProductAction ? "Saving..." : productConfirmation.action === "delete" ? "Delete display" : productConfirmation.action === "hide" ? "Hide display" : "Publish display"}{productConfirmation.action === "delete" ? <Trash2 size={16} /> : <Check size={16} />}</button></div></section></div>}
     {authMode && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setAuthMode(null); }}><section className="modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title"><button className="modal-close" aria-label="Close" onClick={() => setAuthMode(null)}><X size={20} /></button><span className="eyebrow">{authMode === "signup" ? "JOIN GAMZ" : "WELCOME BACK"}</span><h2 id="auth-title">{authMode === "signup" ? "Create your account" : "Sign in"}</h2><p>{authMode === "signup" ? "Save your details for a smoother pickup." : "Sign in to track orders and book your pickup."}</p><form className={authMode === "signup" ? "form-grid signup-form-grid" : "form-grid"} onSubmit={submitAuth}>
       {authMode === "signup" && <>
       <label className="signup-first">First name<input required autoComplete="given-name" value={authDraft.firstName} onChange={(event) => setAuthDraft({ ...authDraft, firstName: event.target.value })} /></label>
@@ -446,9 +480,9 @@ export default function Home() {
 
     {logoutConfirmation && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !signingOut) setLogoutConfirmation(false); }}><section className="modal logout-modal" role="dialog" aria-modal="true" aria-labelledby="logout-title" aria-describedby="logout-description" aria-busy={signingOut} onKeyDown={(event) => { if (event.key === "Escape" && !signingOut) setLogoutConfirmation(false); }}><button className="modal-close" aria-label="Close" disabled={signingOut} onClick={() => setLogoutConfirmation(false)}><X size={20} /></button><span className="eyebrow">ACCOUNT</span><h2 id="logout-title">Logout Confirmation</h2><p id="logout-description">Are you sure you want to log out of your account?</p><div className="logout-actions"><button className="button quiet" autoFocus disabled={signingOut} onClick={() => setLogoutConfirmation(false)}>Cancel</button><button className="button logout-confirm" disabled={signingOut} onClick={handleSignOut}>{signingOut ? "Logging out…" : "Log out"} <LogOut size={16} /></button></div></section></div>}
 
-    {selectedProduct && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedProduct(null); }}><section className="modal order-modal" role="dialog" aria-modal="true" aria-labelledby="order-title"><button className="modal-close" aria-label="Close" onClick={() => setSelectedProduct(null)}><X size={20} /></button><span className="eyebrow">SCHEDULE A PICKUP</span><h2 id="order-title">{selectedProduct.name}</h2><p>{selectedProduct.description}</p><div className="order-summary"><span>{peso(selectedProduct.price)} each</span><span>{selectedProduct.stock} in stock</span></div><form className="form-grid pickup-order-form" onSubmit={placeOrder}><label>Quantity<input required type="number" min="1" max={selectedProduct.stock} step="1" value={orderDraft.quantity} onChange={(e) => setOrderDraft({ ...orderDraft, quantity: e.target.value })} /></label><label>Pickup date<input required type="date" min={today()} value={orderDraft.pickupDate} onChange={(e) => setOrderDraft({ ...orderDraft, pickupDate: e.target.value })} /></label><label>Pickup time<input required type="time" value={orderDraft.pickupTime} onChange={(e) => setOrderDraft({ ...orderDraft, pickupTime: e.target.value })} /></label><p className="total-line full-field"><span>Estimated total</span><strong>{peso(selectedProduct.price * (Number(orderDraft.quantity) || 0))}</strong></p><button className="button primary full-field" type="submit">Place pickup order <ArrowRight size={17} /></button></form><small className="modal-footnote">Your request is pending until Gamz confirms it. Bring valid ID at pickup.</small></section></div>}
+    {selectedProduct && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedProduct(null); }}><section className="modal order-modal" role="dialog" aria-modal="true" aria-labelledby="order-title"><button className="modal-close" aria-label="Close" onClick={() => setSelectedProduct(null)}><X size={20} /></button><span className="eyebrow">SCHEDULE A PICKUP</span><h2 id="order-title">{productLabel(selectedProduct)}</h2><p>{selectedProduct.description}</p><div className="order-summary"><span>{peso(selectedProduct.price)} each</span><span>{selectedProduct.stock} in stock</span></div><form className="form-grid pickup-order-form" onSubmit={placeOrder}><label>Quantity<input required type="number" min="1" max={selectedProduct.stock} step="1" value={orderDraft.quantity} onChange={(e) => setOrderDraft({ ...orderDraft, quantity: e.target.value })} /></label><label>Pickup date<input required type="date" min={today()} value={orderDraft.pickupDate} onChange={(e) => setOrderDraft({ ...orderDraft, pickupDate: e.target.value })} /></label><label>Pickup time<input required type="time" value={orderDraft.pickupTime} onChange={(e) => setOrderDraft({ ...orderDraft, pickupTime: e.target.value })} /></label><p className="total-line full-field"><span>Estimated total</span><strong>{peso(selectedProduct.price * (Number(orderDraft.quantity) || 0))}</strong></p><button className="button primary full-field" type="submit">Place pickup order <ArrowRight size={17} /></button></form><small className="modal-footnote">Your request is pending until Gamz confirms it. Bring valid ID at pickup.</small></section></div>}
 
-    {pickupConfirmationOpen && selectedProduct && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !placingOrder) setPickupConfirmationOpen(false); }}><section className="modal pickup-confirmation-modal" role="alertdialog" aria-modal="true" aria-labelledby="pickup-confirm-title" aria-describedby="pickup-confirm-description" aria-busy={placingOrder} onKeyDown={(event) => { if (event.key === "Escape" && !placingOrder) setPickupConfirmationOpen(false); }}><button className="modal-close" aria-label="Close confirmation" disabled={placingOrder} onClick={() => setPickupConfirmationOpen(false)}><X size={20} /></button><span className="eyebrow">ORDER CONFIRMATION</span><h2 id="pickup-confirm-title">Confirm your pickup order?</h2><p id="pickup-confirm-description">Please prepare a downpayment of at least <strong>{peso(minimumDownpayment)}</strong> (30% of the order total). Confirm to submit your pickup request.</p><div className="pickup-downpayment-summary"><span>Order total<strong>{peso(pickupTotal)}</strong></span><span>Minimum downpayment (30%)<strong>{peso(minimumDownpayment)}</strong></span></div><div className="confirmation-actions"><button type="button" className="button quiet" autoFocus disabled={placingOrder} onClick={() => setPickupConfirmationOpen(false)}>Go back</button><button type="button" className="button primary" disabled={placingOrder} onClick={confirmPlaceOrder}>{placingOrder ? "Placing order…" : "Confirm pickup order"}{!placingOrder && <Check size={17} />}</button></div></section></div>}    {confirmedOrder && <div className="modal-backdrop"><section className="modal success-modal" role="dialog" aria-modal="true" aria-labelledby="success-title"><span className="success-mark"><Check size={26} /></span><span className="eyebrow">ORDER RECEIVED</span><h2 id="success-title">Pickup request confirmed.</h2><p>{confirmedOrder.quantity} × {confirmedOrder.productName} · {peso(confirmedOrder.total)}</p><p className="success-pickup"><CalendarDays size={17} /> {confirmedOrder.pickupDate} <Clock3 size={17} /> {confirmedOrder.pickupTime}</p><button className="button primary" onClick={() => { setConfirmedOrder(null); setTab("orders"); }}>View my orders <ArrowRight size={17} /></button></section></div>}
+    {pickupConfirmationOpen && selectedProduct && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !placingOrder) setPickupConfirmationOpen(false); }}><section className="modal pickup-confirmation-modal" role="alertdialog" aria-modal="true" aria-labelledby="pickup-confirm-title" aria-describedby="pickup-confirm-description" aria-busy={placingOrder} onKeyDown={(event) => { if (event.key === "Escape" && !placingOrder) setPickupConfirmationOpen(false); }}><button className="modal-close" aria-label="Close confirmation" disabled={placingOrder} onClick={() => setPickupConfirmationOpen(false)}><X size={20} /></button><span className="eyebrow">ORDER CONFIRMATION</span><h2 id="pickup-confirm-title">Confirm your pickup order?</h2><p id="pickup-confirm-description">Please prepare a downpayment of at least <strong>{peso(minimumDownpayment)}</strong> (30% of the order total). Confirm to submit your pickup request.</p><div className="pickup-downpayment-summary"><span>Order total<strong>{peso(pickupTotal)}</strong></span><span>Minimum downpayment (30%)<strong>{peso(minimumDownpayment)}</strong></span></div><div className="confirmation-actions"><button type="button" className="button quiet" autoFocus disabled={placingOrder} onClick={() => setPickupConfirmationOpen(false)}>Go back</button><button type="button" className="button primary" disabled={placingOrder} onClick={confirmPlaceOrder}>{placingOrder ? "Placing order…" : "Confirm pickup order"}{!placingOrder && <Check size={17} />}</button></div></section></div>}
     {conversationOrder && user && <OrderConversation key={conversationOrder.id} order={conversationOrder} user={user} viewerRole={isAdmin ? "admin" : "customer"} onClose={() => setConversationOrder(null)} onMessagesSeen={markOrderMessagesRead} />}
 
     {isAdmin && tab === "display" && <section className="admin-products workspace">
@@ -458,7 +492,8 @@ export default function Home() {
       </div>
       <div className="admin-product-list">{products.map((product) => <article className="admin-product-row" key={product.id}>
         <div className="admin-product-thumb" style={product.imageUrl ? { backgroundImage: `url("${product.imageUrl.replaceAll('"', '%22')}")` } : undefined} />
-        <div className="admin-product-copy"><strong>{product.name}</strong>
+        <div className="admin-product-copy"><strong>{productLabel(product)}</strong>
+          <small>{normalizedOrderName(product.name)}</small>
           <small>{peso(product.price)} | {product.stock} in stock | {product.saleType === "promo" ? "Promo" : "Regular"}{product.saleType === "promo" && product.promoStartDate && product.promoEndDate ? ` | ${product.promoStartDate} to ${product.promoEndDate}` : ""}</small>
           <small>{product.description}</small>
         </div>
@@ -469,7 +504,29 @@ export default function Home() {
       </article>)}</div>
 
     </section>}
+
+    {tab === "shop" && <footer className="site-footer"><div className="site-footer-inner">
+      <Link className="footer-brand" href="/" aria-label="GAMZ Fireworks and Liquors homepage" onClick={() => setTab("shop")}><Image className="footer-logo" src="/logo.png" alt="" aria-hidden="true" width={48} height={48} /><span className="footer-brand-copy"><strong>GAMZ</strong><small>Fireworks and Liquors</small></span></Link>
+      <div className="footer-actions"><button type="button" className="footer-icon-button" aria-label="View store location" title="View store location" onClick={() => setLocationOpen(true)}><MapPin size={22} /></button><a className="footer-icon-button" aria-label="Visit GAMZ on Facebook" title="Facebook" href="https://www.facebook.com/kimaii23#" target="_blank" rel="noopener noreferrer"><Facebook size={22} /></a></div>
+    </div></footer>}
+
+    {locationOpen && <div className="modal-backdrop location-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setLocationOpen(false); }} onKeyDown={(event) => { if (event.key === "Escape") setLocationOpen(false); }}><section className="modal location-modal" role="dialog" aria-modal="true" aria-labelledby="store-location-title"><button className="modal-close" aria-label="Close store location" onClick={() => setLocationOpen(false)}><X size={20} /></button><span className="eyebrow">VISIT GAMZ</span><h2 id="store-location-title">Store location</h2><p>Find us on the map or open Google Maps for directions.</p><div className="location-map"><iframe title="GAMZ Fireworks and Liquors location in satellite view" src="https://www.google.com/maps?q=8.945647190445728,125.53342119132618&amp;t=k&amp;z=18&amp;output=embed" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen /></div><a className="button primary location-directions" href="https://www.google.com/maps/dir/?api=1&amp;destination=8.945647190445728%2C125.53342119132618" target="_blank" rel="noopener noreferrer">Get Direction</a></section></div>}
   </main>;
+}
+
+function CatalogProductCard({ product, onOrder }: { product: Product; onOrder: () => void }) {
+  return <article className="product-card">
+    <div className="product-image" style={product.imageUrl ? { backgroundImage: `url("${product.imageUrl.replaceAll('"', "%22")}")` } : undefined}>
+      <span className={product.saleType === "promo" ? "product-badge promo" : "product-badge"}>{product.saleType === "promo" ? "PROMO" : "REGULAR"}</span>
+      {!(product.stock > 0) && <span className="sold-out">Out of Stock</span>}
+    </div>
+    <div className="product-copy">
+      <div className="product-name-line"><h3>{productLabel(product)}</h3><strong>{peso(product.price)}</strong></div>
+      <p>{[normalizedOrderName(product.name), product.description].filter(Boolean).join(" · ") || "Ready for your next celebration."}</p>
+      {product.saleType === "promo" && product.promoStartDate && product.promoEndDate && <small className="promo-dates">Promo: {product.promoStartDate} - {product.promoEndDate}</small>}
+      <div className="product-bottom"><span>{product.stock > 0 ? `${product.stock} in stock` : "0 in stock"}</span><button className="button small primary" disabled={!(product.stock > 0)} onClick={onOrder}>Order <ArrowRight size={15} /></button></div>
+    </div>
+  </article>;
 }
 
 function AdminOrderDashboard({ orders, products, unreadMessageOrderIds, onUpdate, onMessage, onAddDisplay, onEditDisplay, onToggleDisplay, onDeleteDisplay }: { orders: ShopOrder[]; products: Product[]; unreadMessageOrderIds: ReadonlySet<string>; onUpdate: (order: ShopOrder, changes: Partial<ShopOrder>) => Promise<boolean>; onMessage: (order: ShopOrder) => void; onAddDisplay: () => void; onEditDisplay: (product: Product) => void; onToggleDisplay: (product: Product) => void; onDeleteDisplay: (product: Product) => void }) {
@@ -483,7 +540,7 @@ function AdminOrderDashboard({ orders, products, unreadMessageOrderIds, onUpdate
   const allOrders = orders.length;
   const needsPayment = orders.filter((order) => order.status !== "cancelled" && orderBalance(order) > 0).length;
   const readyToPickup = orders.filter((order) => order.status === "ready").length;
-  const totalSold = orders.filter((order) => order.status !== "cancelled" && order.paymentStatus === "paid").reduce((total, order) => total + order.total, 0);
+  const totalSold = orders.filter((order) => order.pickupDate === selectedDate && order.status !== "cancelled" && order.paymentStatus === "paid").reduce((total, order) => total + order.total, 0);
   const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
   const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
   const orderCounts = new Map<string, number>();
@@ -563,7 +620,7 @@ function AdminOrderDashboard({ orders, products, unreadMessageOrderIds, onUpdate
         {selectedOrders.length ? <>
           <div className="admin-order-table-head"><span>Name</span><span>Order</span><span>Balance</span><span>Action</span></div>
           <div className="admin-order-table">{selectedOrders.map((order) => <article className="admin-order-row" key={order.id}>
-            <div className="admin-order-name"><strong>{order.customer}</strong><small>{order.phone} · {order.pickupTime}</small></div>
+            <div className="admin-order-name"><strong>{order.customer}</strong><small>{order.phone} · {formatPickupTime(order.pickupTime)}</small></div>
             <div className="admin-order-items"><strong>{order.quantity} {order.quantity === 1 ? "item" : "items"}</strong><span>· {order.productName}</span></div>
             <button className={`payment-balance${orderBalance(order) === 0 ? " paid" : ""}`} aria-label={orderBalance(order) === 0 ? `${order.customer}'s order is fully paid` : `Mark ${order.customer}'s order paid (${peso(orderBalance(order))})`} disabled={orderBalance(order) === 0} onClick={() => onUpdate(order, { paymentStatus: "paid" })}>{orderBalance(order) === 0 ? "Paid" : peso(orderBalance(order))}</button>
             <div className="admin-order-actions"><select aria-label={`Pickup status for ${order.customer}`} value={order.status} onChange={(event) => onUpdate(order, { status: event.target.value as ShopOrder["status"] })}><option value="pending">Needs pickup</option><option value="ready">Ready</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select><button type="button" className="text-button reschedule-button" onClick={() => openReschedule(order)}>Reschedule</button></div>
@@ -574,7 +631,7 @@ function AdminOrderDashboard({ orders, products, unreadMessageOrderIds, onUpdate
     <PickupList orders={orders} selectedDate={selectedDate} unreadMessageOrderIds={unreadMessageOrderIds} onUpdate={onUpdate} onMessage={onMessage} />
     <DisplayManagement products={products} onAdd={onAddDisplay} onEdit={onEditDisplay} onToggle={onToggleDisplay} onDelete={onDeleteDisplay} />
     {rescheduleDraft && !rescheduleConfirmation && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setRescheduleDraft(null); }} onKeyDown={(event) => { if (event.key === "Escape") setRescheduleDraft(null); }}><section className="modal reschedule-modal" role="dialog" aria-modal="true" aria-labelledby="reschedule-title"><button className="modal-close" aria-label="Close reschedule form" onClick={() => setRescheduleDraft(null)}><X size={20} /></button><span className="eyebrow">UPDATE PICKUP</span><h2 id="reschedule-title">Reschedule pickup</h2><p>Choose a new pickup date and time.</p><form className="form-grid reschedule-form" onSubmit={prepareReschedule}><label className="full-field">Pickup Date<input required type="date" min={today()} value={rescheduleDraft.pickupDate} onChange={(event) => setRescheduleDraft({ ...rescheduleDraft, pickupDate: event.target.value })} /></label><label className="full-field">Pickup Time<input required type="time" value={rescheduleDraft.pickupTime} onChange={(event) => setRescheduleDraft({ ...rescheduleDraft, pickupTime: event.target.value })} /></label><div className="confirmation-actions full-field"><button type="button" className="button quiet" onClick={() => setRescheduleDraft(null)}>Cancel</button><button type="submit" className="button primary">Continue <ArrowRight size={17} /></button></div></form></section></div>}
-    {rescheduleConfirmation && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !savingReschedule) setRescheduleConfirmation(null); }} onKeyDown={(event) => { if (event.key === "Escape" && !savingReschedule) setRescheduleConfirmation(null); }}><section className="modal pickup-confirmation-modal" role="alertdialog" aria-modal="true" aria-labelledby="reschedule-confirm-title" aria-describedby="reschedule-confirm-description" aria-busy={savingReschedule}><button className="modal-close" aria-label="Close reschedule confirmation" disabled={savingReschedule} onClick={() => setRescheduleConfirmation(null)}><X size={20} /></button><span className="eyebrow">CONFIRM SCHEDULE</span><h2 id="reschedule-confirm-title">Confirm reschedule?</h2><p id="reschedule-confirm-description">Change {confirmingRescheduleOrder?.productName ?? "this order"} for {confirmingRescheduleOrder?.customer ?? "the customer"} to:</p><div className="reschedule-summary"><span>Pickup Date<strong>{new Date(`${rescheduleConfirmation.pickupDate}T12:00:00`).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}</strong></span><span>Pickup Time<strong>{rescheduleConfirmation.pickupTime}</strong></span></div>{rescheduleError && <p className="reschedule-error" role="alert">{rescheduleError}</p>}<div className="confirmation-actions"><button type="button" className="button quiet" disabled={savingReschedule} onClick={() => setRescheduleConfirmation(null)}>Back to edit</button><button type="button" className="button primary" disabled={savingReschedule} onClick={confirmReschedule}>{savingReschedule ? "Saving…" : "Confirm reschedule"}</button></div></section></div>}
+    {rescheduleConfirmation && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !savingReschedule) setRescheduleConfirmation(null); }} onKeyDown={(event) => { if (event.key === "Escape" && !savingReschedule) setRescheduleConfirmation(null); }}><section className="modal pickup-confirmation-modal" role="alertdialog" aria-modal="true" aria-labelledby="reschedule-confirm-title" aria-describedby="reschedule-confirm-description" aria-busy={savingReschedule}><button className="modal-close" aria-label="Close reschedule confirmation" disabled={savingReschedule} onClick={() => setRescheduleConfirmation(null)}><X size={20} /></button><span className="eyebrow">CONFIRM SCHEDULE</span><h2 id="reschedule-confirm-title">Confirm reschedule?</h2><p id="reschedule-confirm-description">Change {confirmingRescheduleOrder?.productName ?? "this order"} for {confirmingRescheduleOrder?.customer ?? "the customer"} to:</p><div className="reschedule-summary"><span>Pickup Date<strong>{new Date(`${rescheduleConfirmation.pickupDate}T12:00:00`).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}</strong></span><span>Pickup Time<strong>{formatPickupTime(rescheduleConfirmation.pickupTime)}</strong></span></div>{rescheduleError && <p className="reschedule-error" role="alert">{rescheduleError}</p>}<div className="confirmation-actions"><button type="button" className="button quiet" disabled={savingReschedule} onClick={() => setRescheduleConfirmation(null)}>Back to edit</button><button type="button" className="button primary" disabled={savingReschedule} onClick={confirmReschedule}>{savingReschedule ? "Saving…" : "Confirm reschedule"}</button></div></section></div>}
   </section>;
 }
 
@@ -623,8 +680,8 @@ function PickupList({ orders, selectedDate, unreadMessageOrderIds, onUpdate, onM
     const balance = orderBalance(order);
     return <article className={`pickup-order-card${delivered ? " delivered" : ""}`} key={order.id}>
       <div className="pickup-order-field pickup-customer"><span>Name</span><strong>{order.customer}</strong><a href={`tel:${order.phone}`}>{order.phone}</a></div>
-      <div className="pickup-order-field"><span>Order Name</span><strong>{order.productName}</strong><small>{order.quantity} × {peso(order.total / Math.max(order.quantity, 1))} <b>·</b> {peso(order.total)}</small></div>
-      <div className="pickup-order-field"><span>Pickup Date</span><strong>{new Date(`${order.pickupDate}T12:00:00`).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}</strong><small>Pickup Time · {order.pickupTime}</small></div>
+      <div className="pickup-order-field"><span>Order Name</span><strong>{normalizedOrderName(order.orderName ?? order.productName)}</strong>{order.orderName && <small>Product · {order.productName}</small>}<small>{order.quantity} × {peso(order.total / Math.max(order.quantity, 1))} <b>·</b> {peso(order.total)}</small></div>
+      <div className="pickup-order-field"><span>Pickup Date</span><strong>{new Date(`${order.pickupDate}T12:00:00`).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}</strong><small>Pickup Time · {formatPickupTime(order.pickupTime)}</small></div>
       <div className="pickup-order-field"><span>Downpayment</span>{delivered ? <strong>{peso(order.downpayment ?? 0)}</strong> : <label className="pickup-downpayment-input">₱<input type="number" min="0" max={order.total} step="0.01" defaultValue={order.downpayment ?? 0} key={`${order.id}-${order.downpayment ?? 0}`} aria-label={`Downpayment for ${order.customer}`} onBlur={(event) => saveDownpayment(order, event.currentTarget)} /></label>}</div>
       <div className="pickup-order-field pickup-order-balance"><span>Balance</span><strong>{peso(balance)}</strong>{order.paymentStatus === "paid" || balance === 0 ? <span className="pickup-paid-label">Fully paid</span> : delivered ? <span className="pickup-paid-label">Payment due</span> : <button className="pickup-payment-button" onClick={() => setConfirmation({ orderId: order.id, action: "payment" })}>Fully Paid (Click Here)</button>}</div>
       <div className="pickup-order-actions"><MessageButton unread={unreadMessageOrderIds.has(order.id)} onClick={() => onMessage(order)} />{delivered ? <span className="pickup-delivered-label"><Check size={15} /> Delivered</span> : <button className="button primary small" onClick={() => setConfirmation({ orderId: order.id, action: "delivered" })} disabled={balance > 0} title={balance > 0 ? "Collect the remaining balance before marking delivered." : undefined}>Mark Delivered</button>}</div>
@@ -654,7 +711,8 @@ function DisplayManagement({ products, onAdd, onEdit, onToggle, onDelete }: { pr
     </div>
     {sortedProducts.length ? <div className="display-management-list">{sortedProducts.map((product) => <article className="display-management-row" key={product.id}>
       <div className="display-management-thumb" style={product.imageUrl ? { backgroundImage: `url("${product.imageUrl.replaceAll('"', '%22')}")` } : undefined} />
-      <div className="display-management-copy"><div className="display-management-title-line"><strong>{product.name}</strong><span className={product.active ? "active-pill" : "inactive-pill"}>{product.active ? "Live" : "Hidden"}</span></div>
+      <div className="display-management-copy"><div className="display-management-title-line"><strong>{productLabel(product)}</strong><span className={product.active ? "active-pill" : "inactive-pill"}>{product.active ? "Live" : "Hidden"}</span></div>
+        <small>{normalizedOrderName(product.name)}</small>
         <small>{peso(product.price)} · {product.stock} in stock · {product.saleType === "promo" ? "Promo" : "Regular"}{product.saleType === "promo" && product.promoStartDate && product.promoEndDate ? ` · ${product.promoStartDate} to ${product.promoEndDate}` : ""}</small>
         <small>{product.description}</small>
       </div>
@@ -667,7 +725,7 @@ function MessageButton({ unread, onClick }: { unread: boolean; onClick: () => vo
   return <button type="button" className="button quiet small message-action" aria-label={unread ? "Message, new message" : "Message"} title={unread ? "New message" : undefined} onClick={onClick}><MessageCircle size={15} /> Message{unread && <span className="message-notification-dot" aria-hidden="true" />}</button>;
 }
 
-function OrderList({ orders, products, unreadMessageOrderIds, onMessage, onDelete }: { orders: ShopOrder[]; products: Product[]; unreadMessageOrderIds: ReadonlySet<string>; onMessage: (order: ShopOrder) => void; onDelete: (order: ShopOrder) => Promise<boolean> }) {
+function OrderList({ orders, products, unreadMessageOrderIds, onMessage, onCancel }: { orders: ShopOrder[]; products: Product[]; unreadMessageOrderIds: ReadonlySet<string>; onMessage: (order: ShopOrder) => void; onCancel: (order: ShopOrder) => Promise<boolean> }) {
   const [gcashQrOpen, setGcashQrOpen] = useState(false);
   const [cancelConfirmation, setCancelConfirmation] = useState<ShopOrder | null>(null);
   const [cancelling, setCancelling] = useState(false);
@@ -684,11 +742,11 @@ function OrderList({ orders, products, unreadMessageOrderIds, onMessage, onDelet
     return () => window.clearTimeout(timeout);
   }, [orders]);
 
-  async function confirmDelete() {
+  async function confirmCancel() {
     if (!cancelConfirmation || cancelling) return;
     setCancelling(true);
     try {
-      await onDelete(cancelConfirmation);
+      await onCancel(cancelConfirmation);
       setCancelConfirmation(null);
     } finally {
       setCancelling(false);
@@ -699,9 +757,9 @@ function OrderList({ orders, products, unreadMessageOrderIds, onMessage, onDelet
   return <>
     <div className="order-list">{orders.map((order) => {
       const canCancel = order.status === "pending" && Number.isSafeInteger(order.createdAt) && order.createdAt <= now && now < order.createdAt + ORDER_CANCEL_WINDOW_MS; const productImageUrl = order.productImageUrl ?? products.find((product) => product.id === order.productId)?.imageUrl;
-      return <article className="order-row" key={order.id}><div className="order-item-icon">{productImageUrl ? <Image src={productImageUrl} alt={order.productName} width={44} height={44} unoptimized /> : <ShoppingBag size={20} />}</div><div className="order-main"><strong>{order.productName} <span>× {order.quantity}</span></strong><small>{order.customer} · {order.phone}</small><small><CalendarDays size={14} /> {order.pickupDate} <Clock3 size={14} /> {order.pickupTime}</small></div><div className="order-total">{canCancel && <button type="button" className="order-cancel-button" onClick={() => setCancelConfirmation(order)}>Cancel</button>}<strong>{peso(order.total)}</strong><span className={`status ${order.status}`}>{order.status}</span></div><div className="order-actions"><button type="button" className="button quiet small" onClick={() => setGcashQrOpen(true)}><QrCode size={15} /> GCash QR</button><MessageButton unread={unreadMessageOrderIds.has(order.id)} onClick={() => onMessage(order)} /></div></article>;
+      return <article className="order-row" key={order.id}><div className="order-item-icon">{productImageUrl ? <Image src={productImageUrl} alt={order.productName} width={44} height={44} unoptimized /> : <ShoppingBag size={20} />}</div><div className="order-main"><strong>{order.productName} <span>× {order.quantity}</span></strong>{order.orderName && <small>{normalizedOrderName(order.orderName)}</small>}<small>{order.customer} · {order.phone}</small><small><CalendarDays size={14} /> {order.pickupDate} <Clock3 size={14} /> {formatPickupTime(order.pickupTime)}</small></div><div className="order-total">{canCancel && <button type="button" className="order-cancel-button" onClick={() => setCancelConfirmation(order)}>Cancel</button>}<strong>{peso(order.total)}</strong><span className={`status ${order.status}`}>{order.status}</span></div><div className="order-actions"><button type="button" className="button quiet small" onClick={() => setGcashQrOpen(true)}><QrCode size={15} /> GCash QR</button><MessageButton unread={unreadMessageOrderIds.has(order.id)} onClick={() => onMessage(order)} /></div></article>;
     })}</div>
     {gcashQrOpen && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setGcashQrOpen(false); }} onKeyDown={(event) => { if (event.key === "Escape") setGcashQrOpen(false); }}><section className="modal gcash-qr-modal" role="dialog" aria-modal="true" aria-labelledby="gcash-qr-title"><button className="modal-close" aria-label="Close GCash QR" onClick={() => setGcashQrOpen(false)}><X size={20} /></button><span className="eyebrow">GCASH PAYMENT</span><h2 id="gcash-qr-title">Pay here via GCash</h2><p>Scan the QR code or send your payment to this number.</p><Image className="gcash-qr-image" src="/gcash-qr.jpg" alt="Gamz GCash QR code" width={300} height={400} /><p className="gcash-qr-number"><span>GCash No.</span><strong>09989771033</strong></p><a className="button primary" href="/gcash-qr.jpg" download="gcash-qr.jpg"><Download size={17} /> Save this QR</a></section></div>}
-    {cancelConfirmation && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !cancelling) setCancelConfirmation(null); }} onKeyDown={(event) => { if (event.key === "Escape" && !cancelling) setCancelConfirmation(null); }}><section className="modal pickup-confirmation-modal" role="alertdialog" aria-modal="true" aria-labelledby="order-delete-title" aria-describedby="order-delete-description" aria-busy={cancelling}><button className="modal-close" aria-label="Close deletion confirmation" disabled={cancelling} onClick={() => setCancelConfirmation(null)}><X size={20} /></button><span className="eyebrow">DELETE ORDER</span><h2 id="order-delete-title">Delete this order?</h2><p id="order-delete-description">Permanently delete your {cancelConfirmation.productName} pickup order? Its reserved stock will return to the display.</p><div className="confirmation-actions"><button type="button" className="button quiet" autoFocus disabled={cancelling} onClick={() => setCancelConfirmation(null)}>Keep order</button><button type="button" className="button order-cancel-confirm" disabled={cancelling} onClick={confirmDelete}>{cancelling ? "Deleting…" : "Delete order"}</button></div></section></div>}
+    {cancelConfirmation && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !cancelling) setCancelConfirmation(null); }} onKeyDown={(event) => { if (event.key === "Escape" && !cancelling) setCancelConfirmation(null); }}><section className="modal pickup-confirmation-modal" role="alertdialog" aria-modal="true" aria-labelledby="order-cancel-title" aria-describedby="order-cancel-description" aria-busy={cancelling}><button className="modal-close" aria-label="Close cancellation confirmation" disabled={cancelling} onClick={() => setCancelConfirmation(null)}><X size={20} /></button><span className="eyebrow">CANCEL ORDER</span><h2 id="order-cancel-title">Cancel this order?</h2><p id="order-cancel-description">Cancel your {cancelConfirmation.productName} pickup order? Its reserved stock will return to the display.</p><div className="confirmation-actions"><button type="button" className="button quiet" autoFocus disabled={cancelling} onClick={() => setCancelConfirmation(null)}>Keep order</button><button type="button" className="button order-cancel-confirm" disabled={cancelling} onClick={confirmCancel}>{cancelling ? "Cancelling…" : "Cancel order"}</button></div></section></div>}
   </>;
 }
