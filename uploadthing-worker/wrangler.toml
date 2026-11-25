@@ -6,7 +6,7 @@ workers_dev = true
 
 [vars]
 FIREBASE_PROJECT_ID = "gamz-store"
-GAMZ_ORIGIN = "https://gamz-store.github.io,https://gamz-store.ps-taguibo-uploadthing-worker.workers.dev"
+GAMZ_ORIGIN = "https://gamz-store.github.io,https://gamz-store.ps-taguibo-uploadthing-worker.workers.dev,https://gamz-store-github-io.ps-taguibo-uploadthing-worker.workers.dev"
 
 [observability]
 enabled = true

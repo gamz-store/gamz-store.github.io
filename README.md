@@ -49,8 +49,8 @@ The static storefront has been deployed to Cloudflare at `https://gamz-store.ps-
 
 ## Firebase collections
 
-- `products`: public active catalog; admins create and edit price, sale type, stock, description, image, and visibility.
+- `products`: public active catalog; admins manage the order name, description, stock, price, sale type, optional promo date range, and visibility.
 - `users`: customer profile and server-managed `role` (`user` or `admin`).
-- `orders`: product snapshot, quantity, pickup date and time, status, and customer contact. Inventory deduction and order creation are a single transaction.
+- `orders`: product snapshot, quantity, pickup date and time, pickup status, payment status, and customer contact. Inventory deduction and order creation are a single transaction.
 
 Firebase Authentication, Firestore, GitHub Pages, and Cloudflare services must be enabled/deployed in their respective consoles; source configuration alone cannot create or authorize those external accounts.
