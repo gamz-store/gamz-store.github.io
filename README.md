@@ -5,12 +5,12 @@ A mobile-first Next.js storefront for Gamz with Firebase Authentication, Firesto
 ## Local development
 
 1. Install Node.js 22 or later, then run `npm install`.
-2. Copy `.env.example` to `.env.local` and set the Firebase web app values. A populated local file is included when building in this workspace; `.env.local` is git-ignored.
+2. Create a local `.env.local` file with the `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID`, and `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` values from Firebase Console. `.env.local` is git-ignored and is not included in the repository.
 3. In Firebase Console for `gamz-store`, enable Email/Password Authentication, create the default Firestore database, add `localhost` and `gamz-store.github.io` to authorized domains, and publish `firestore.rules`.
 4. Run `npm run dev`.
 5. Create the first account using the website, then grant admin access as described below. Add products from the admin Display tab.
 
-Firebase web configuration is public client configuration, not an admin credential. Restrict its API key to the intended APIs and domains in Google Cloud Console. Never put Firebase service-account credentials or the UploadThing token in this repository.
+Firebase web configuration is public client configuration, not an admin credential. Values prefixed with `NEXT_PUBLIC_` are compiled into the browser bundle and cannot be kept secret in a static website. Restrict the Firebase API key to the intended APIs and domains in Google Cloud Console, and rely on Firestore rules for data authorization. Never put Firebase service-account credentials or the UploadThing token in this repository.
 
 ## First admin
 
