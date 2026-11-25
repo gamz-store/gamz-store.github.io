@@ -77,6 +77,7 @@ export default function Home() {
   const [unreadMessageOrderIds, setUnreadMessageOrderIds] = useState<Set<string>>(() => new Set());
   const latestMessageCursors = useRef(new Map<string, MessageCursor>());
   const pageStartedAt = useRef(Date.now());
+  const initialLandingUserId = useRef<string | null>(null);
   const userId = user?.uid;
   const pickupTotal = selectedProduct ? selectedProduct.price * (Number(orderDraft.quantity) || 0) : 0;
   const minimumDownpayment = Math.ceil(pickupTotal * 30 - 1e-8) / 100;
@@ -108,6 +109,7 @@ export default function Home() {
       unsubscribeProfile = undefined;
       setUser(nextUser);
       if (!nextUser || !db) {
+        initialLandingUserId.current = null;
         setProfile(null);
         setProfileReady(true);
         setTab("shop");
@@ -124,8 +126,14 @@ export default function Home() {
       }
       setProfileReady(false);
       unsubscribeProfile = onSnapshot(doc(db, "users", nextUser.uid), (snapshot) => {
-        setProfile(snapshot.exists() ? snapshot.data() as Profile : null);
+        const nextProfile = snapshot.exists() ? snapshot.data() as Profile : null;
+        setProfile(nextProfile);
         setProfileReady(true);
+        if (initialLandingUserId.current !== nextUser.uid) {
+          setTab(nextProfile?.role === "admin" ? "admin" : "shop");
+          setMobileNav(false);
+          initialLandingUserId.current = nextUser.uid;
+        }
       }, () => { setProfileReady(true); setNotice("Could not load your account profile."); });
     });
     return () => { unsubscribeProfile?.(); unsubscribeAuth(); };
