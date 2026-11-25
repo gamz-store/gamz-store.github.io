@@ -468,7 +468,10 @@ function AdminOrderDashboard({ orders, products, unreadMessageOrderIds, onUpdate
   const [selectedDate, setSelectedDate] = useState(today);
   const [month, setMonth] = useState(() => { const date = new Date(); return new Date(date.getFullYear(), date.getMonth(), 1); });
   const [filter, setFilter] = useState<"all" | "needs-payment" | "ready">("all");
-  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
+  const [rescheduleDraft, setRescheduleDraft] = useState<{ orderId: string; pickupDate: string; pickupTime: string } | null>(null);
+  const [rescheduleConfirmation, setRescheduleConfirmation] = useState<{ orderId: string; pickupDate: string; pickupTime: string } | null>(null);
+  const [savingReschedule, setSavingReschedule] = useState(false);
+  const [rescheduleError, setRescheduleError] = useState("");
   const allOrders = orders.length;
   const needsPayment = orders.filter((order) => order.status !== "cancelled" && orderBalance(order) > 0).length;
   const readyToPickup = orders.filter((order) => order.status === "ready").length;
@@ -485,11 +488,50 @@ function AdminOrderDashboard({ orders, products, unreadMessageOrderIds, onUpdate
     return true;
   }).sort((a, b) => a.pickupTime.localeCompare(b.pickupTime));
   const selectedDateLabel = new Date(`${selectedDate}T12:00:00`).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" });
+  const confirmingRescheduleOrder = rescheduleConfirmation ? orders.find((order) => order.id === rescheduleConfirmation.orderId) : undefined;
   const metrics = [
     { id: "all" as const, label: "All Orders", value: String(allOrders), icon: <PackageCheck size={18} />, className: "orders-metric peach" },
     { id: "needs-payment" as const, label: "Needs Payment", value: String(needsPayment), icon: <Banknote size={18} />, className: "orders-metric coral" },
     { id: "ready" as const, label: "Ready to Pickup", value: String(readyToPickup), icon: <Clock3 size={18} />, className: "orders-metric yellow" },
   ];
+
+  function openReschedule(order: ShopOrder) {
+    setRescheduleDraft({ orderId: order.id, pickupDate: order.pickupDate, pickupTime: order.pickupTime });
+    setRescheduleConfirmation(null);
+    setRescheduleError("");
+  }
+
+  function prepareReschedule(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!rescheduleDraft || !rescheduleDraft.pickupDate || !rescheduleDraft.pickupTime || rescheduleDraft.pickupDate < today()) return;
+    setRescheduleError("");
+    setRescheduleConfirmation({ ...rescheduleDraft });
+  }
+
+  async function confirmReschedule() {
+    if (!rescheduleConfirmation || savingReschedule) return;
+    const order = orders.find((item) => item.id === rescheduleConfirmation.orderId);
+    if (!order) {
+      setRescheduleDraft(null);
+      setRescheduleConfirmation(null);
+      return;
+    }
+    setSavingReschedule(true);
+    setRescheduleError("");
+    try {
+      const saved = await onUpdate(order, { pickupDate: rescheduleConfirmation.pickupDate, pickupTime: rescheduleConfirmation.pickupTime });
+      if (saved) {
+        setRescheduleDraft(null);
+        setRescheduleConfirmation(null);
+      } else {
+        setRescheduleError("Could not save the new pickup schedule. Please try again.");
+      }
+    } catch {
+      setRescheduleError("Could not save the new pickup schedule. Please try again.");
+    } finally {
+      setSavingReschedule(false);
+    }
+  }
 
   return <section className="workspace admin-workspace order-dashboard">
     <div className="page-heading"><div><span className="eyebrow">STORE DESK</span><h1>Order List</h1><p>Review payments and prepare scheduled pickups.</p></div></div>
@@ -516,13 +558,15 @@ function AdminOrderDashboard({ orders, products, unreadMessageOrderIds, onUpdate
             <div className="admin-order-name"><strong>{order.customer}</strong><small>{order.phone} · {order.pickupTime}</small></div>
             <div className="admin-order-items"><strong>{order.quantity} {order.quantity === 1 ? "item" : "items"}</strong><span>· {order.productName}</span></div>
             <button className={`payment-balance${orderBalance(order) === 0 ? " paid" : ""}`} aria-label={orderBalance(order) === 0 ? `${order.customer}'s order is fully paid` : `Mark ${order.customer}'s order paid (${peso(orderBalance(order))})`} disabled={orderBalance(order) === 0} onClick={() => onUpdate(order, { paymentStatus: "paid" })}>{orderBalance(order) === 0 ? "Paid" : peso(orderBalance(order))}</button>
-            <div className="admin-order-actions"><select aria-label={`Pickup status for ${order.customer}`} value={order.status} onChange={(event) => onUpdate(order, { status: event.target.value as ShopOrder["status"] })}><option value="pending">Needs pickup</option><option value="ready">Ready</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select><button className="text-button reschedule-button" onClick={() => setReschedulingId(reschedulingId === order.id ? null : order.id)}>{reschedulingId === order.id ? "Close" : "Reschedule"}</button>{reschedulingId === order.id && <input aria-label={`New pickup date for ${order.customer}`} type="date" min={today()} value={order.pickupDate} onChange={(event) => { if (event.target.value) { onUpdate(order, { pickupDate: event.target.value }); setReschedulingId(null); } }} />}</div>
+            <div className="admin-order-actions"><select aria-label={`Pickup status for ${order.customer}`} value={order.status} onChange={(event) => onUpdate(order, { status: event.target.value as ShopOrder["status"] })}><option value="pending">Needs pickup</option><option value="ready">Ready</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select><button type="button" className="text-button reschedule-button" onClick={() => openReschedule(order)}>Reschedule</button></div>
           </article>)}</div>
         </> : <div className="empty-state compact-empty"><span className="empty-icon"><ShoppingBag size={22} /></span><h2>No orders for this date</h2><p>{filter === "all" ? "Pickup orders for this day will appear here." : "No orders match this filter for the selected day."}</p></div>}
       </section>
     </div>
     <PickupList orders={orders} selectedDate={selectedDate} unreadMessageOrderIds={unreadMessageOrderIds} onUpdate={onUpdate} onMessage={onMessage} />
     <DisplayManagement products={products} onAdd={onAddDisplay} onEdit={onEditDisplay} onToggle={onToggleDisplay} onDelete={onDeleteDisplay} />
+    {rescheduleDraft && !rescheduleConfirmation && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setRescheduleDraft(null); }} onKeyDown={(event) => { if (event.key === "Escape") setRescheduleDraft(null); }}><section className="modal reschedule-modal" role="dialog" aria-modal="true" aria-labelledby="reschedule-title"><button className="modal-close" aria-label="Close reschedule form" onClick={() => setRescheduleDraft(null)}><X size={20} /></button><span className="eyebrow">UPDATE PICKUP</span><h2 id="reschedule-title">Reschedule pickup</h2><p>Choose a new pickup date and time.</p><form className="form-grid reschedule-form" onSubmit={prepareReschedule}><label className="full-field">Pickup Date<input required type="date" min={today()} value={rescheduleDraft.pickupDate} onChange={(event) => setRescheduleDraft({ ...rescheduleDraft, pickupDate: event.target.value })} /></label><label className="full-field">Pickup Time<input required type="time" value={rescheduleDraft.pickupTime} onChange={(event) => setRescheduleDraft({ ...rescheduleDraft, pickupTime: event.target.value })} /></label><div className="confirmation-actions full-field"><button type="button" className="button quiet" onClick={() => setRescheduleDraft(null)}>Cancel</button><button type="submit" className="button primary">Continue <ArrowRight size={17} /></button></div></form></section></div>}
+    {rescheduleConfirmation && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !savingReschedule) setRescheduleConfirmation(null); }} onKeyDown={(event) => { if (event.key === "Escape" && !savingReschedule) setRescheduleConfirmation(null); }}><section className="modal pickup-confirmation-modal" role="alertdialog" aria-modal="true" aria-labelledby="reschedule-confirm-title" aria-describedby="reschedule-confirm-description" aria-busy={savingReschedule}><button className="modal-close" aria-label="Close reschedule confirmation" disabled={savingReschedule} onClick={() => setRescheduleConfirmation(null)}><X size={20} /></button><span className="eyebrow">CONFIRM SCHEDULE</span><h2 id="reschedule-confirm-title">Confirm reschedule?</h2><p id="reschedule-confirm-description">Change {confirmingRescheduleOrder?.productName ?? "this order"} for {confirmingRescheduleOrder?.customer ?? "the customer"} to:</p><div className="reschedule-summary"><span>Pickup Date<strong>{new Date(`${rescheduleConfirmation.pickupDate}T12:00:00`).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}</strong></span><span>Pickup Time<strong>{rescheduleConfirmation.pickupTime}</strong></span></div>{rescheduleError && <p className="reschedule-error" role="alert">{rescheduleError}</p>}<div className="confirmation-actions"><button type="button" className="button quiet" disabled={savingReschedule} onClick={() => setRescheduleConfirmation(null)}>Back to edit</button><button type="button" className="button primary" disabled={savingReschedule} onClick={confirmReschedule}>{savingReschedule ? "Saving…" : "Confirm reschedule"}</button></div></section></div>}
   </section>;
 }
 

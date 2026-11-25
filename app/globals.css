@@ -188,3 +188,10 @@ button.orders-metric:hover{transform:translateY(-2px);box-shadow:6px 9px 17px #8
 
 .message-action{position:relative;overflow:visible}
 .message-notification-dot{width:11px;height:11px;position:absolute;top:-5px;right:-5px;z-index:2;border:2px solid #fffaf6;border-radius:50%;background:var(--red);box-shadow:0 0 0 1px #fff}
+.reschedule-button,.reschedule-button:hover{text-decoration:none}
+.reschedule-modal h2{margin:13px 35px 7px 0}
+.reschedule-modal .reschedule-form{margin-top:17px}
+.reschedule-summary{margin:15px 0;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;border:1px solid #f0dfd6;border-radius:10px;background:#fff4ed;text-align:left}
+.reschedule-summary span{display:flex;flex-direction:column;gap:5px;color:#806e65;font-size:11px}
+.reschedule-summary strong{color:var(--ink);font-size:13px}
+.reschedule-error{margin:0 0 12px!important;color:#a52a23!important}
