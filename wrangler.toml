@@ -1,0 +1,8 @@
+name = "gamz-store-github-io"
+main = "./cloudflare-worker.js"
+compatibility_date = "2026-11-21"
+workers_dev = true
+
+[assets]
+directory = "./out"
+binding = "ASSETS"

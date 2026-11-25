@@ -1,0 +1,111 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function userPath(uid) { return /databases/$(database)/documents/users/$(uid); }
+    function productPath(pid) { return /databases/$(database)/documents/products/$(pid); }
+    function orderPath(oid) { return /databases/$(database)/documents/orders/$(oid); }
+    function isAdmin() {
+      return signedIn() && get(userPath(request.auth.uid)).data.role == 'admin';
+    }
+    function validProfile() {
+      return request.resource.data.keys().hasOnly(['firstName', 'lastName', 'suffix', 'province', 'municipality', 'barangay', 'street', 'phone', 'email', 'role'])
+        && request.resource.data.firstName is string
+        && request.resource.data.lastName is string
+        && request.resource.data.phone is string
+        && request.resource.data.email is string
+        && request.resource.data.role == 'user';
+    }
+    function validProduct() {
+      return request.resource.data.keys().hasOnly(['name', 'description', 'stock', 'price', 'saleType', 'imageUrl', 'active', 'lastOrderId'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.description is string
+        && request.resource.data.stock is int
+        && request.resource.data.stock >= 0
+        && request.resource.data.price is number
+        && request.resource.data.price >= 0
+        && request.resource.data.saleType in ['regular', 'promo']
+        && request.resource.data.imageUrl is string
+        && request.resource.data.active is bool
+        && (!request.resource.data.keys().hasAny(['lastOrderId']) || request.resource.data.lastOrderId is string);
+    }
+    function validOrder(oid) {
+      let product = get(productPath(request.resource.data.productId)).data;
+      let productAfter = getAfter(productPath(request.resource.data.productId)).data;
+      let productOrder = getAfter(orderPath(productAfter.get('lastOrderId', ''))).data;
+      return request.resource.data.keys().hasOnly(['userId', 'customer', 'phone', 'productId', 'productName', 'quantity', 'total', 'pickupDate', 'pickupTime', 'status', 'createdAt'])
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.customer is string
+        && request.resource.data.phone is string
+        && request.resource.data.productName == product.name
+        && request.resource.data.productId is string
+        && request.resource.data.quantity is int
+        && request.resource.data.quantity >= 1
+        && request.resource.data.quantity <= 99
+        && request.resource.data.total == product.price * request.resource.data.quantity
+        && request.resource.data.pickupDate is string
+        && request.resource.data.pickupDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.pickupTime is string
+        && request.resource.data.pickupTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt is int
+        && request.resource.data.createdAt <= request.time.toMillis()
+        && request.resource.data.createdAt >= request.time.toMillis() - 300000
+        && product.active == true
+        && product.stock >= request.resource.data.quantity
+        && productAfter.stock == product.stock - request.resource.data.quantity
+        && productAfter.lastOrderId == oid
+        && productOrder.userId == request.auth.uid
+        && productOrder.productId == request.resource.data.productId
+        && productOrder.quantity == request.resource.data.quantity;
+    }
+    function validStockDeduction(productId) {
+      let orderId = request.resource.data.get('lastOrderId', '');
+      let orderAfter = getAfter(orderPath(orderId)).data;
+      return signedIn()
+        && orderId is string
+        && orderId.size() > 0
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'lastOrderId'])
+        && resource.data.stock is int
+        && request.resource.data.stock is int
+        && request.resource.data.stock >= 0
+        && request.resource.data.stock < resource.data.stock
+        && orderAfter.userId == request.auth.uid
+        && orderAfter.productId == productId
+        && orderAfter.status == 'pending'
+        && orderAfter.quantity == resource.data.stock - request.resource.data.stock;
+    }
+    function validOrderStatusUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status in ['pending', 'ready', 'completed', 'cancelled'];
+    }
+
+    match /products/{productId} {
+      allow read: if resource.data.active == true || isAdmin();
+      allow create: if isAdmin() && validProduct();
+      allow update: if (isAdmin() && validProduct())
+        || validStockDeduction(productId);
+      allow delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow create: if signedIn() && request.auth.uid == userId && validProfile();
+      allow update: if (signedIn() && request.auth.uid == userId
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.keys().hasOnly(['firstName', 'lastName', 'suffix', 'province', 'municipality', 'barangay', 'street', 'phone', 'email', 'role']))
+        || (isAdmin() && request.auth.uid != userId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
+          && request.resource.data.role in ['user', 'admin']);
+      allow delete: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      allow create: if signedIn() && validOrder(orderId);
+      allow read: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isAdmin() && validOrderStatusUpdate();
+      allow delete: if isAdmin();
+    }
+  }
+}
