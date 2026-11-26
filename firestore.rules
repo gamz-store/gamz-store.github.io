@@ -43,13 +43,8 @@ service cloud.firestore {
     function validCatalogProduct(name, product) {
       return product is string
         && product.size() > 0
-        && ((name == 'Fountains / Sparklers' && product in ['Batibot', 'Yanco Jumbo Silver', 'Sputnik Silver', 'Tiger Crackling Fountain', 'Lucky Pagoda Crackling Fountain', 'Lucky Mayon Crackling Fountain', 'Mt. Everest Fountain', '3-Minute Fountain', '100-in Sparkler Stick', 'Harry Potter 10s', 'Harry Potter 30s', 'Harry Potter 40s', 'Harry Potter 50s', 'Luces', 'Victory Lights'])
-          || (name == 'Aerial' && product in ['Party USA 16s', 'Guiding Light 16s', 'Gold of Aztec 16s', 'Dragon Aerial 16s', 'LF Aerial 16s', 'Fat Cat 16s', 'RPG 24s', 'Thumbs up 30s', 'Cloud Dragon 24s', 'Magician 30s'])
-          || (name == 'Kwitis' && product in ['Maribel Kwitis Stick 10s', 'Maribel Kwitis Stick 50s', 'Maribel Kwitis Stick 100s'])
-          || (name == 'Firecrackers' && product in ['Higad', 'Sawa 500 Rounds', 'Sawa 1000 Rounds', 'Celebration Firecrackers 100k', 'Celebrtion Firecrackers 50k'])
-          || (name == 'Bombshells' && product in ['JLJ Aquino 1s', 'JLJ Aquino 3s', 'JLJ Aquino 7s', 'JLJ Aquino 9s'])
-          || (name == 'Liquors' && product in ['Black Label', 'Gold Label', 'Red Label', 'Jack Daniel', 'Jose Cuervo', 'Blur Label', 'Singleton', 'Macallan'])
-          || (name == 'Others' && product.size() <= 120));
+        && product.size() <= 120
+        && name in ['Aerial', 'Bombshells', 'Firecrackers', 'Fountains / Sparklers', 'Kwitis', 'Liquors', 'Others'];
     }
     function validLiquorSize(product, size) {
       return size is string
@@ -68,7 +63,9 @@ service cloud.firestore {
         || (hasProduct
           && validCatalogProduct(name, product)
           && (name == 'Liquors'
-            ? (hasSize && validLiquorSize(product, size))
+            ? (product in ['Black Label', 'Gold Label', 'Red Label', 'Jack Daniel', 'Jose Cuervo', 'Blur Label', 'Singleton', 'Macallan']
+              ? (hasSize && validLiquorSize(product, size))
+              : !hasSize)
             : !hasSize));
     }
     function validProduct() {
