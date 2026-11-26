@@ -101,7 +101,7 @@ button.orders-metric:hover{transform:translateY(-2px);box-shadow:6px 9px 17px #1
 .button.primary{color:var(--navy)}
 .topbar .brand small{color:var(--sky)}
 .topbar .nav-link.active{border-color:var(--orange);color:var(--navy);background:var(--orange)}
-.topbar .nav-link.active svg{color:var(--navy)}
+.topbar .nav-link.active svg{color:var(--orange)}
 @media(max-width:760px){.display-management-heading{align-items:flex-start;flex-direction:column}.display-management-heading h2{font-size:25px}.display-management-row{grid-template-columns:52px minmax(0,1fr);gap:10px}.display-management-thumb{width:50px;height:50px}.display-management-actions{grid-column:2;flex-wrap:wrap}.display-management-copy>small{font-size:11px}}
 @media(max-width:480px){.display-management{margin-top:24px;padding-top:22px}.display-management-heading{gap:12px}.display-management-heading .button{width:100%}.display-management-row{padding:9px;grid-template-columns:43px minmax(0,1fr);gap:8px}.display-management-thumb{width:42px;height:42px}.display-management-title-line{align-items:flex-start;flex-direction:column;gap:5px}.display-management-copy>small{white-space:normal}.display-management-actions{grid-column:1/-1}.display-management-actions .button{min-height:32px;padding:0 8px;font-size:11px}.display-management-empty{align-items:flex-start;flex-wrap:wrap;padding:14px}.display-management-empty>div{min-width:calc(100% - 70px)}}
 .modal.product-confirmation-modal{width:min(100%,480px)}
