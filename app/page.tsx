@@ -47,7 +47,19 @@ const liquorSizesByProduct: Record<string, string[]> = {
 const normalizedOrderName = (name: string) => name === "Fountains" || name === "Sparklers" ? "Fountains / Sparklers" : name;
 const productLabel = (product: Pick<Product, "name" | "product" | "size">) => [product.product || product.name, product.size].filter(Boolean).join(" · ");
 const peso = (value: number) => `₱${value.toLocaleString("en-PH", { maximumFractionDigits: 2 })}`;
-const today = () => { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; };
+const today = () => {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+};
+const promoUnavailableMessage = (product: Pick<Product, "saleType" | "promoStartDate" | "promoEndDate">, date = today()) => {
+  if (product.saleType !== "promo") return "";
+  const { promoStartDate, promoEndDate } = product;
+  if (!promoStartDate || !promoEndDate || !/^\d{4}-\d{2}-\d{2}$/.test(promoStartDate) || !/^\d{4}-\d{2}-\d{2}$/.test(promoEndDate) || promoEndDate < promoStartDate) return "This promo has no valid date range and cannot be ordered.";
+  if (date < promoStartDate) return `This promo starts on ${promoStartDate}.`;
+  if (date > promoEndDate) return `This promo ended on ${promoEndDate}.`;
+  return "";
+};
 const formatPickupTime = (time: string) => {
   const match = /^(\d{2}):([0-5]\d)$/.exec(time);
   if (!match) return time;
@@ -295,6 +307,8 @@ export default function Home() {
   function placeOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!db || !user || !profile || !selectedProduct) { setNotice("Sign in to place an order."); return; }
+    const promoMessage = promoUnavailableMessage(selectedProduct);
+    if (promoMessage) { setNotice(promoMessage); return; }
     const quantity = Number(orderDraft.quantity);
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > selectedProduct.stock) { setNotice("Please choose a valid quantity within available stock."); return; }
     if (!orderDraft.pickupDate || !orderDraft.pickupTime || orderDraft.pickupDate < today()) { setNotice("Choose a valid pickup date and time."); return; }
@@ -303,6 +317,8 @@ export default function Home() {
 
   async function confirmPlaceOrder() {
     if (!db || !user || !profile || !selectedProduct) { setPickupConfirmationOpen(false); setNotice("Sign in to place an order."); return; }
+    const promoMessage = promoUnavailableMessage(selectedProduct);
+    if (promoMessage) { setPickupConfirmationOpen(false); setNotice(promoMessage); return; }
     const quantity = Number(orderDraft.quantity);
     setPlacingOrder(true);
     try {
@@ -313,8 +329,11 @@ export default function Home() {
       await runTransaction(db, async (transaction) => {
         const latest = await transaction.get(productRef);
         if (!latest.exists() || latest.data().active !== true) throw new Error("This item is no longer available.");
-        if (Number(latest.data().stock) < quantity) throw new Error("Stock changed. Please adjust your quantity.");
-        transaction.update(productRef, { stock: Number(latest.data().stock) - quantity, lastOrderId: orderRef.id });
+        const latestProduct = latest.data() as Product;
+        const latestPromoMessage = promoUnavailableMessage(latestProduct);
+        if (latestPromoMessage) throw new Error(latestPromoMessage);
+        if (Number(latestProduct.stock) < quantity) throw new Error("Stock changed. Please adjust your quantity.");
+        transaction.update(productRef, { stock: Number(latestProduct.stock) - quantity, lastOrderId: orderRef.id });
         transaction.set(orderRef, order);
       });
       setPickupConfirmationOpen(false);
@@ -438,7 +457,13 @@ export default function Home() {
     {tab === "shop" && <>
       <section className="catalog" id="catalog"><div className="section-title"><div><span className="eyebrow">THE GAMZ SELECTION</span><h2>Shop the Display</h2></div><span className="catalog-count">{filteredProducts.length} {filteredProducts.length === 1 ? "item" : "items"}</span></div><div className="catalog-tools"><label className="catalog-search"><Search size={18} aria-hidden="true" /><input type="search" value={catalogSearch} onChange={(event) => setCatalogSearch(event.target.value)} placeholder="Search orders" aria-label="Search orders" /></label><label className="catalog-filter"><select aria-label="Filter by order name" value={catalogOrderName} onChange={(event) => setCatalogOrderName(event.target.value)}><option value="">All order names</option>{productCategories.map((name) => <option key={name} value={name}>{name}</option>)}</select></label></div>
         {!firebaseEnabled && <div className="setup-note"><ShieldAlert size={20} /><span><strong>Store setup in progress</strong><small>Add your Firebase web configuration to load products and enable orders.</small></span></div>}
-        <div className="catalog-groups">{groupedCatalog.length ? groupedCatalog.map(({ orderName, items }) => <section className="catalog-group" key={orderName}><h3 className="catalog-group-heading"><span>{orderName}</span><small>{items.length} {items.length === 1 ? "item" : "items"}</small></h3><div className="product-grid">{items.map((product) => <CatalogProductCard key={product.id} product={product} onOrder={() => { if (!user) { setAuthMode("login"); setNotice("Sign in or create an account to order."); return; } setSelectedProduct(product); setOrderDraft({ quantity: "1", pickupDate: "", pickupTime: "" }); }} />)}</div></section>) : products.length ? <div className="empty-menu"><span className="empty-icon"><Search size={24} /></span><h3>No displays match your search.</h3><p>Try a different search or clear the search and filter.</p><button className="text-button" onClick={() => { setCatalogSearch(""); setCatalogOrderName(""); }}>Clear search and filter</button></div> : <div className="empty-menu"><span className="empty-icon"><ShoppingBag size={24} /></span><h3>The shelves are getting ready.</h3><p>New favorites will show up here once the menu is published.</p>{!user && <button className="text-button" onClick={() => setAuthMode("signup")}>Create an account <ArrowRight size={15} /></button>}</div>}</div>
+        <div className="catalog-groups">{groupedCatalog.length ? groupedCatalog.map(({ orderName, items }) => <section className="catalog-group" key={orderName}><h3 className="catalog-group-heading"><span>{orderName}</span><small>{items.length} {items.length === 1 ? "item" : "items"}</small></h3><div className="product-grid">{items.map((product) => <CatalogProductCard key={product.id} product={product} onOrder={() => {
+          const promoMessage = promoUnavailableMessage(product);
+          if (promoMessage) { setNotice(promoMessage); return; }
+          if (!user) { setAuthMode("login"); setNotice("Sign in or create an account to order."); return; }
+          setSelectedProduct(product);
+          setOrderDraft({ quantity: "1", pickupDate: "", pickupTime: "" });
+        }} />)}</div></section>) : products.length ? <div className="empty-menu"><span className="empty-icon"><Search size={24} /></span><h3>No displays match your search.</h3><p>Try a different search or clear the search and filter.</p><button className="text-button" onClick={() => { setCatalogSearch(""); setCatalogOrderName(""); }}>Clear search and filter</button></div> : <div className="empty-menu"><span className="empty-icon"><ShoppingBag size={24} /></span><h3>The shelves are getting ready.</h3><p>New favorites will show up here once the menu is published.</p>{!user && <button className="text-button" onClick={() => setAuthMode("signup")}>Create an account <ArrowRight size={15} /></button>}</div>}</div>
       </section></>}
 
     {tab === "orders" && <section className="workspace"><div className="page-heading"><div><span className="eyebrow">YOUR ACCOUNT</span><h1>My orders</h1><p>Pickup details and order status, all in one place.</p></div><button className="button quiet" onClick={() => setTab("shop")}>Back to Display <ArrowRight size={16} /></button></div><OrderList orders={visibleOrders} products={products} unreadMessageOrderIds={unreadMessageOrderIds} onMessage={openOrderConversation} onCancel={cancelCustomerOrder} /></section>}
@@ -480,7 +505,7 @@ export default function Home() {
 
     {logoutConfirmation && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !signingOut) setLogoutConfirmation(false); }}><section className="modal logout-modal" role="dialog" aria-modal="true" aria-labelledby="logout-title" aria-describedby="logout-description" aria-busy={signingOut} onKeyDown={(event) => { if (event.key === "Escape" && !signingOut) setLogoutConfirmation(false); }}><button className="modal-close" aria-label="Close" disabled={signingOut} onClick={() => setLogoutConfirmation(false)}><X size={20} /></button><span className="eyebrow">ACCOUNT</span><h2 id="logout-title">Logout Confirmation</h2><p id="logout-description">Are you sure you want to log out of your account?</p><div className="logout-actions"><button className="button quiet" autoFocus disabled={signingOut} onClick={() => setLogoutConfirmation(false)}>Cancel</button><button className="button logout-confirm" disabled={signingOut} onClick={handleSignOut}>{signingOut ? "Logging out…" : "Log out"} <LogOut size={16} /></button></div></section></div>}
 
-    {selectedProduct && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedProduct(null); }}><section className="modal order-modal" role="dialog" aria-modal="true" aria-labelledby="order-title"><button className="modal-close" aria-label="Close" onClick={() => setSelectedProduct(null)}><X size={20} /></button><span className="eyebrow">SCHEDULE A PICKUP</span><h2 id="order-title">{productLabel(selectedProduct)}</h2><p>{selectedProduct.description}</p><div className="order-summary"><span>{peso(selectedProduct.price)} each</span><span>{selectedProduct.stock} in stock</span></div><form className="form-grid pickup-order-form" onSubmit={placeOrder}><label>Quantity<input required type="number" min="1" max={selectedProduct.stock} step="1" value={orderDraft.quantity} onChange={(e) => setOrderDraft({ ...orderDraft, quantity: e.target.value })} /></label><label>Pickup date<input required type="date" min={today()} value={orderDraft.pickupDate} onChange={(e) => setOrderDraft({ ...orderDraft, pickupDate: e.target.value })} /></label><label>Pickup time<input required type="time" value={orderDraft.pickupTime} onChange={(e) => setOrderDraft({ ...orderDraft, pickupTime: e.target.value })} /></label><p className="total-line full-field"><span>Estimated total</span><strong>{peso(selectedProduct.price * (Number(orderDraft.quantity) || 0))}</strong></p><button className="button primary full-field" type="submit">Place pickup order <ArrowRight size={17} /></button></form><small className="modal-footnote">Your request is pending until Gamz confirms it. Bring valid ID at pickup.</small></section></div>}
+    {selectedProduct && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedProduct(null); }}><section className="modal order-modal" role="dialog" aria-modal="true" aria-labelledby="order-title"><button className="modal-close" aria-label="Close" onClick={() => setSelectedProduct(null)}><X size={20} /></button><span className="eyebrow">SCHEDULE A PICKUP</span><h2 id="order-title">{productLabel(selectedProduct)}</h2><p>{selectedProduct.description}</p><div className="order-summary"><span>{peso(selectedProduct.price)} each</span><span>{selectedProduct.stock} in stock</span></div><form className="form-grid pickup-order-form" onSubmit={placeOrder}><label>Quantity<input required type="number" min="1" max={selectedProduct.stock} step="1" value={orderDraft.quantity} onChange={(e) => setOrderDraft({ ...orderDraft, quantity: e.target.value })} /></label><label>Pickup date<input required type="date" min={today()} value={orderDraft.pickupDate} onChange={(e) => setOrderDraft({ ...orderDraft, pickupDate: e.target.value })} /></label><label>Pickup time<input required type="time" value={orderDraft.pickupTime} onChange={(e) => setOrderDraft({ ...orderDraft, pickupTime: e.target.value })} /></label>{promoUnavailableMessage(selectedProduct) && <p className="form-error full-field" role="status">{promoUnavailableMessage(selectedProduct)}</p>}<p className="total-line full-field"><span>Estimated total</span><strong>{peso(selectedProduct.price * (Number(orderDraft.quantity) || 0))}</strong></p><button className="button primary full-field" type="submit" disabled={Boolean(promoUnavailableMessage(selectedProduct))}>Place pickup order <ArrowRight size={17} /></button></form><small className="modal-footnote">Your request is pending until Gamz confirms it. Bring valid ID at pickup.</small></section></div>}
 
     {pickupConfirmationOpen && selectedProduct && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !placingOrder) setPickupConfirmationOpen(false); }}><section className="modal pickup-confirmation-modal" role="alertdialog" aria-modal="true" aria-labelledby="pickup-confirm-title" aria-describedby="pickup-confirm-description" aria-busy={placingOrder} onKeyDown={(event) => { if (event.key === "Escape" && !placingOrder) setPickupConfirmationOpen(false); }}><button className="modal-close" aria-label="Close confirmation" disabled={placingOrder} onClick={() => setPickupConfirmationOpen(false)}><X size={20} /></button><span className="eyebrow">ORDER CONFIRMATION</span><h2 id="pickup-confirm-title">Confirm your pickup order?</h2><p id="pickup-confirm-description">Please prepare a downpayment of at least <strong>{peso(minimumDownpayment)}</strong> (30% of the order total). Confirm to submit your pickup request.</p><div className="pickup-downpayment-summary"><span>Order total<strong>{peso(pickupTotal)}</strong></span><span>Minimum downpayment (30%)<strong>{peso(minimumDownpayment)}</strong></span></div><div className="confirmation-actions"><button type="button" className="button quiet" autoFocus disabled={placingOrder} onClick={() => setPickupConfirmationOpen(false)}>Go back</button><button type="button" className="button primary" disabled={placingOrder} onClick={confirmPlaceOrder}>{placingOrder ? "Placing order…" : "Confirm pickup order"}{!placingOrder && <Check size={17} />}</button></div></section></div>}
     {conversationOrder && user && <OrderConversation key={conversationOrder.id} order={conversationOrder} user={user} viewerRole={isAdmin ? "admin" : "customer"} onClose={() => setConversationOrder(null)} onMessagesSeen={markOrderMessagesRead} />}
@@ -515,6 +540,7 @@ export default function Home() {
 }
 
 function CatalogProductCard({ product, onOrder }: { product: Product; onOrder: () => void }) {
+  const promoMessage = promoUnavailableMessage(product);
   return <article className="product-card">
     <div className="product-image" style={product.imageUrl ? { backgroundImage: `url("${product.imageUrl.replaceAll('"', "%22")}")` } : undefined}>
       <span className={product.saleType === "promo" ? "product-badge promo" : "product-badge"}>{product.saleType === "promo" ? "PROMO" : "REGULAR"}</span>
@@ -523,8 +549,8 @@ function CatalogProductCard({ product, onOrder }: { product: Product; onOrder: (
     <div className="product-copy">
       <div className="product-name-line"><h3>{productLabel(product)}</h3><strong>{peso(product.price)}</strong></div>
       <p>{[normalizedOrderName(product.name), product.description].filter(Boolean).join(" · ") || "Ready for your next celebration."}</p>
-      {product.saleType === "promo" && product.promoStartDate && product.promoEndDate && <small className="promo-dates">Promo: {product.promoStartDate} - {product.promoEndDate}</small>}
-      <div className="product-bottom"><span>{product.stock > 0 ? `${product.stock} in stock` : "0 in stock"}</span><button className="button small primary" disabled={!(product.stock > 0)} onClick={onOrder}>Order <ArrowRight size={15} /></button></div>
+      {product.saleType === "promo" && <small className="promo-dates">Promo: {product.promoStartDate || "date not set"} - {product.promoEndDate || "date not set"}{promoMessage ? ` · ${promoMessage}` : ""}</small>}
+      <div className="product-bottom"><span>{product.stock > 0 ? `${product.stock} in stock` : "0 in stock"}</span><button className="button small primary" aria-label={promoMessage || `Order ${productLabel(product)}`} disabled={!(product.stock > 0) || Boolean(promoMessage)} onClick={onOrder}>Order <ArrowRight size={15} /></button></div>
     </div>
   </article>;
 }

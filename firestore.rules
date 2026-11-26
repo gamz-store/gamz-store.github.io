@@ -94,6 +94,24 @@ service cloud.firestore {
         && request.resource.data.active is bool
         && (!request.resource.data.keys().hasAny(['lastOrderId']) || request.resource.data.lastOrderId is string);
     }
+    function currentPhilippineDate() {
+      let localTime = request.time + duration.value(8, 'h');
+      let month = localTime.month();
+      let day = localTime.day();
+      return string(localTime.year()) + '-' + (month < 10 ? '0' : '') + string(month) + '-' + (day < 10 ? '0' : '') + string(day);
+    }
+    function promoAvailable(product) {
+      let currentDate = currentPhilippineDate();
+      return product.get('saleType', 'regular') == 'regular'
+        || (product.get('saleType', '') == 'promo'
+          && product.get('promoStartDate', '') is string
+          && product.promoStartDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && product.get('promoEndDate', '') is string
+          && product.promoEndDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && product.promoEndDate >= product.promoStartDate
+          && product.promoStartDate <= currentDate
+          && product.promoEndDate >= currentDate);
+    }
     function validOrder(oid) {
       let product = get(productPath(request.resource.data.productId)).data;
       let productAfter = getAfter(productPath(request.resource.data.productId)).data;
@@ -126,6 +144,7 @@ service cloud.firestore {
         && request.resource.data.createdAt <= request.time.toMillis()
         && request.resource.data.createdAt >= request.time.toMillis() - 300000
         && product.active == true
+        && promoAvailable(product)
         && product.stock >= request.resource.data.quantity
         && productAfter.stock == product.stock - request.resource.data.quantity
         && productAfter.lastOrderId == oid
